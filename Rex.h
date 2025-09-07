@@ -1587,7 +1587,11 @@ namespace REX
             auto it = extra.find(name);
             if (it == extra.end())
             {
-                throw std::out_of_range("No parameter named '" + name + "'");
+                throw std::out_of_range("event::get: No parameter named '" + name + "'");
+            }
+            if (it->second.type() != typeid(T))
+            {
+                throw std::bad_any_cast("event::get: Parameter '" + name + "' is not of requested type");
             }
             return std::any_cast<T &>(it->second);
         }
@@ -1598,7 +1602,11 @@ namespace REX
             auto it = extra.find(name);
             if (it == extra.end())
             {
-                throw std::out_of_range("No parameter named '" + name + "'");
+                throw std::out_of_range("event::get: No parameter named '" + name + "'");
+            }
+            if (it->second.type() != typeid(T))
+            {
+                throw std::bad_any_cast("event::get: Parameter '" + name + "' is not of requested type");
             }
             return std::any_cast<const T &>(it->second);
         }
@@ -1779,7 +1787,22 @@ namespace REX
             compare_n = v;
             return *this;
         }
+        eventComparatorConfig &set_nUP(bool v)
+        {
+            compare_n = v;
+            return *this;
+        }
         eventComparatorConfig &set_proc_id(bool v)
+        {
+            compare_proc_id = v;
+            return *this;
+        }
+        eventComparatorConfig &set_idPr(bool v)
+        {
+            compare_proc_id = v;
+            return *this;
+        }
+        eventComparatorConfig &set_idPrUP(bool v)
         {
             compare_proc_id = v;
             return *this;
@@ -1789,7 +1812,22 @@ namespace REX
             compare_weight = v;
             return *this;
         }
+        eventComparatorConfig &set_xWgt(bool v)
+        {
+            compare_weight = v;
+            return *this;
+        }
+        eventComparatorConfig &set_xWgtUP(bool v)
+        {
+            compare_weight = v;
+            return *this;
+        }
         eventComparatorConfig &set_scale(bool v)
+        {
+            compare_scale = v;
+            return *this;
+        }
+        eventComparatorConfig &set_scalUP(bool v)
         {
             compare_scale = v;
             return *this;
@@ -1799,13 +1837,84 @@ namespace REX
             compare_alphaEW = v;
             return *this;
         }
+        eventComparatorConfig &set_aQED(bool v)
+        {
+            compare_alphaEW = v;
+            return *this;
+        }
+        eventComparatorConfig &set_aQEDUP(bool v)
+        {
+            compare_alphaEW = v;
+            return *this;
+        }
+        eventComparatorConfig &set_alphaQED(bool v)
+        {
+            compare_alphaEW = v;
+            return *this;
+        }
+        eventComparatorConfig &set_aEW(bool v)
+        {
+            compare_alphaEW = v;
+            return *this;
+        }
         eventComparatorConfig &set_alphaS(bool v)
+        {
+            compare_alphaS = v;
+            return *this;
+        }
+        eventComparatorConfig &set_aQCD(bool v)
+        {
+            compare_alphaS = v;
+            return *this;
+        }
+        eventComparatorConfig &set_aQCDUP(bool v)
+        {
+            compare_alphaS = v;
+            return *this;
+        }
+        eventComparatorConfig &set_aS(bool v)
         {
             compare_alphaS = v;
             return *this;
         }
         // Particle-specific parameters
         eventComparatorConfig &set_momentum(bool v)
+        {
+            compare_momentum = v;
+            compare_momentum_x = v;
+            compare_momentum_y = v;
+            compare_momentum_z = v;
+            compare_momentum_E = v;
+            return *this;
+        }
+        eventComparatorConfig &set_pUP(bool v)
+        {
+            compare_momentum = v;
+            compare_momentum_x = v;
+            compare_momentum_y = v;
+            compare_momentum_z = v;
+            compare_momentum_E = v;
+            return *this;
+        }
+        eventComparatorConfig &set_p(bool v)
+        {
+            compare_momentum = v;
+            compare_momentum_x = v;
+            compare_momentum_y = v;
+            compare_momentum_z = v;
+            compare_momentum_E = v;
+            return *this;
+        }
+        eventComparatorConfig &set_momenta(bool v)
+        {
+            compare_momentum = v;
+            compare_momentum_x = v;
+            compare_momentum_y = v;
+            compare_momentum_z = v;
+            compare_momentum_E = v;
+            return *this;
+        }
+        eventComparatorConfig &set_mom(bool v)
         {
             compare_momentum = v;
             compare_momentum_x = v;
@@ -1823,7 +1932,101 @@ namespace REX
             compare_momentum_z = z;
             return *this;
         }
+        eventComparatorConfig &set_momenta(bool e, bool x, bool y, bool z)
+        {
+            compare_momentum = e || x || y || z;
+            compare_momentum_E = e;
+            compare_momentum_x = x;
+            compare_momentum_y = y;
+            compare_momentum_z = z;
+            return *this;
+        }
+        eventComparatorConfig &set_pUP(bool e, bool x, bool y, bool z)
+        {
+            compare_momentum = e || x || y || z;
+            compare_momentum_E = e;
+            compare_momentum_x = x;
+            compare_momentum_y = y;
+            compare_momentum_z = z;
+            return *this;
+        }
+        eventComparatorConfig &set_p(bool e, bool x, bool y, bool z)
+        {
+            compare_momentum = e || x || y || z;
+            compare_momentum_E = e;
+            compare_momentum_x = x;
+            compare_momentum_y = y;
+            compare_momentum_z = z;
+            return *this;
+        }
+        eventComparatorConfig &set_mom(bool e, bool x, bool y, bool z)
+        {
+            compare_momentum = e || x || y || z;
+            compare_momentum_E = e;
+            compare_momentum_x = x;
+            compare_momentum_y = y;
+            compare_momentum_z = z;
+            return *this;
+        }
+        eventComparatorConfig &set_E(bool v)
+        {
+            compare_momentum_E = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_t(bool v)
+        {
+            compare_momentum_E = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_x(bool v)
+        {
+            compare_momentum_x = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_px(bool v)
+        {
+            compare_momentum_x = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_y(bool v)
+        {
+            compare_momentum_y = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_py(bool v)
+        {
+            compare_momentum_y = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_z(bool v)
+        {
+            compare_momentum_z = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
+        eventComparatorConfig &set_pz(bool v)
+        {
+            compare_momentum_z = v;
+            compare_momentum = compare_momentum_x || compare_momentum_y || compare_momentum_z || compare_momentum_E;
+            return *this;
+        }
         eventComparatorConfig &set_mass(bool v)
+        {
+            compare_mass = v;
+            return *this;
+        }
+        eventComparatorConfig &set_m(bool v)
+        {
+            compare_mass = v;
+            return *this;
+        }
+        eventComparatorConfig &set_mUP(bool v)
         {
             compare_mass = v;
             return *this;
@@ -1833,7 +2036,22 @@ namespace REX
             compare_vtim = v;
             return *this;
         }
+        eventComparatorConfig &set_vTim(bool v)
+        {
+            compare_vtim = v;
+            return *this;
+        }
+        eventComparatorConfig &set_vTimUP(bool v)
+        {
+            compare_vtim = v;
+            return *this;
+        }
         eventComparatorConfig &set_spin(bool v)
+        {
+            compare_spin = v;
+            return *this;
+        }
+        eventComparatorConfig &set_spinUP(bool v)
         {
             compare_spin = v;
             return *this;
@@ -1843,7 +2061,27 @@ namespace REX
             compare_pdg = v;
             return *this;
         }
+        eventComparatorConfig &set_id(bool v)
+        {
+            compare_pdg = v;
+            return *this;
+        }
+        eventComparatorConfig &set_idUP(bool v)
+        {
+            compare_pdg = v;
+            return *this;
+        }
         eventComparatorConfig &set_status(bool v)
+        {
+            compare_status = v;
+            return *this;
+        }
+        eventComparatorConfig &set_iSt(bool v)
+        {
+            compare_status = v;
+            return *this;
+        }
+        eventComparatorConfig &set_iStUP(bool v)
         {
             compare_status = v;
             return *this;
@@ -1853,15 +2091,46 @@ namespace REX
             compare_mother = v;
             return *this;
         }
+        eventComparatorConfig &set_moth(bool v)
+        {
+            compare_mother = v;
+            return *this;
+        }
+        eventComparatorConfig &set_mothUP(bool v)
+        {
+            compare_mother = v;
+            return *this;
+        }
         eventComparatorConfig &set_icol(bool v)
         {
             compare_icol = v;
             return *this;
         }
+        eventComparatorConfig &set_iCol(bool v)
+        {
+            compare_icol = v;
+            return *this;
+        }
+        eventComparatorConfig &set_iColUP(bool v)
+        {
+            compare_icol = v;
+            return *this;
+        }
 
+        eventComparatorConfig &set_status_filter(std::vector<int> v)
+        {
+            status_filter = std::set<int>(v.begin(), v.end());
+            return *this;
+        }
         eventComparatorConfig &set_status_filter(std::set<int> s)
         {
             status_filter = std::move(s);
+            return *this;
+        }
+        template <typename... Args>
+        eventComparatorConfig &set_status_filter(Args... args)
+        {
+            status_filter = std::set<int>{args...};
             return *this;
         }
         eventComparatorConfig &set_tolerance(double tol)
