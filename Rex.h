@@ -1173,7 +1173,7 @@ namespace REX
         event &set_wgts(const std::vector<double> &w);
         event &add_wgt(double w, const std::string &id = "");
 
-        std::vector<size_t> indices;                                       // indices of particles for ordered views without modifying underlying data
+        std::vector<size_t> indices = {};                                  // indices of particles for ordered views without modifying underlying data
         event &set_indices();                                              // Default indexing is sequential by storage order
         event &set_indices(const event &e, bool fail_on_mismatch = false); // Set indices based on another event (fail on mismatch forces events to be equal, throws on miss)
         event &set_indices(const std::vector<size_t> &idxs);               // Set indices explicitly
@@ -1274,7 +1274,7 @@ namespace REX
         size_t n_wgts() const;
 
         // IDs for various additional weights, shared between events (and the LHE struct)
-        std::shared_ptr<std::vector<std::string>> weight_ids = std::make_shared<std::vector<std::string>>();
+        std::shared_ptr<std::vector<std::string>> weight_ids = nullptr;
 
         // Print functions (LHEF XML format)
         void print_head(std::ostream &os = std::cout) const;
@@ -3009,7 +3009,10 @@ namespace REX
 
     lhe to_lhe(std::shared_ptr<xmlNode> node);
     lhe to_lhe(const std::string &xml);
+    lhe load_lhef(std::istream &in);
     lhe load_lhef(const std::string &filename);
+    void write_lhef(lhe &doc, std::ostream &out = std::cout, bool include_ids = false);
+    void write_lhef(lhe &doc, const std::string &filename, bool include_ids = false);
     std::shared_ptr<xmlNode> to_xml(xmlRaw &raw);
     std::shared_ptr<xmlNode> to_xml(const lhe &doc);
     std::shared_ptr<xmlNode> load_xml(const std::string &filename);

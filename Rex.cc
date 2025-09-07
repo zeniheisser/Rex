@@ -3905,8 +3905,10 @@ namespace REX
         }
         for (auto ev : this->events)
         {
+            if (!ev)
+                continue;
             if (ev->weight_ids)
-            {
+            { // If event has weight_ids, check if it's larger than current
                 if (ev->weight_ids->size() > this->weight_ids->size())
                     this->weight_ids = ev->weight_ids;
             }
@@ -5485,10 +5487,117 @@ namespace REX
         return to_lhe(xmlNode::parse(xml));
     }
 
+    lhe load_lhef(std::istream &in)
+    {
+        // reads file line by line to avoid issues with large files
+        // starts with reading the header (if it exists) and maps it to an xmlNode
+        // then reads the init node and makes an initNode object
+        // then reads each event node and makes an event object, creating a vector of shared ptrs to events
+        auto events = std::vector<std::shared_ptr<event>>();
+        auto content = std::string();
+        std::string buf;
+        while (buf.empty())
+        {
+            std::getline(in, buf);
+        }
+        if (buf.find("LesHouchesEvents") == npos)
+        {
+            throw std::runtime_error("load_lhef: not a valid LHEF file");
+        }
+        std::shared_ptr<xmlNode> header = nullptr;
+        std::getline(in, buf);
+        if (buf.find("header") != npos)
+        {
+            if (buf.find("</header") != npos || buf.find("/>") != npos)
+            {
+                header = xmlNode::parse(buf);
+            }
+            else
+            {
+                content += buf + "\n";
+                while (std::getline(in, buf))
+                {
+                    content += buf + "\n";
+                    if (buf.find("/header") != npos)
+                        break;
+                }
+                header = xmlNode::parse(content);
+                content.clear();
+            }
+        }
+        while (buf.find("init") == npos)
+        {
+            std::getline(in, buf);
+        }
+        if (buf.find("</init") != npos || buf.find("/>") != npos)
+        {
+            throw std::runtime_error("load_lhef: malformed init block");
+        }
+        content += buf + "\n";
+        while (std::getline(in, buf))
+        {
+            content += buf + "\n";
+            if (buf.find("/init") != npos)
+            {
+                break;
+            }
+        }
+        auto init = xml_to_init(xmlNode::parse(content));
+        content.clear();
+        while (std::getline(in, buf))
+        {
+            if (buf.find("<event") != npos)
+            {
+                if (!content.empty())
+                {
+                    auto curr_event = xml_to_event(xmlNode::parse(content));
+                    if (curr_event)
+                        events.push_back(curr_event);
+                }
+                content.clear();
+                content += buf + "\n";
+            }
+            else if (buf.find("</LesHouchesEvents") != npos)
+            {
+                if (!content.empty())
+                {
+                    auto curr_event = xml_to_event(xmlNode::parse(content));
+                    if (curr_event)
+                        events.push_back(curr_event);
+                }
+                content.clear();
+                break;
+            }
+            else
+            {
+                content += buf + "\n";
+            }
+        }
+        lhe doc(init, events);
+        if (header)
+            doc.set_header(header);
+        return doc;
+    }
+
     lhe load_lhef(const std::string &filename)
     {
-        auto lhe_content = read_file(filename);
-        return to_lhe(lhe_content);
+        auto stream = std::ifstream(filename);
+        if (!stream)
+            throw std::ios_base::failure("load_lhef: could not open file for reading");
+        return load_lhef(stream);
+    }
+
+    void write_lhef(lhe &doc, std::ostream &out, bool include_weight_ids)
+    {
+        doc.print(out, include_weight_ids);
+    }
+
+    void write_lhef(lhe &doc, const std::string &filename, bool include_weight_ids)
+    {
+        auto stream = std::ofstream(filename);
+        if (!stream)
+            throw std::ios_base::failure("write_lhef: could not open file for writing");
+        write_lhef(doc, stream, include_weight_ids);
     }
 
     std::shared_ptr<xmlNode> load_xml(const std::string &filename)
