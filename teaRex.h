@@ -50,6 +50,12 @@ namespace REX::tea
 
     bool true_function();
 
+    // Type for handling SLHA card modifictions using cards of the form
+    // # launch rwgt_name=OPTIONAL_NAME
+    // # set BLOCK_NAME PARAM_ID PARAM_VALUE
+    // # set BLOCK_NAME PARAM_ID PARAM_VALUE
+    // #
+    // # launch rwgt_name=OPTIONAL_NAME2...
     struct rwgt_slha : public slha
     {
         // Default constructors
@@ -143,34 +149,39 @@ namespace REX::tea
         std::exception_ptr first_error_ = nullptr;
     };
 
-    struct singleProcessReweightor
+    struct procReweightor
     {
         // Default constructors
-        singleProcessReweightor() = default;
-        singleProcessReweightor(const singleProcessReweightor &) = default;
-        singleProcessReweightor(singleProcessReweightor &&) = default;
-        singleProcessReweightor &operator=(const singleProcessReweightor &) = default;
-        singleProcessReweightor &operator=(singleProcessReweightor &&) = default;
+        procReweightor() = default;
+        procReweightor(const procReweightor &) = default;
+        procReweightor(procReweightor &&) = default;
+        procReweightor &operator=(const procReweightor &) = default;
+        procReweightor &operator=(procReweightor &&) = default;
         // Explicit constructors wrt reweighting
-        singleProcessReweightor(weightor reweight_function);
-        singleProcessReweightor(weightor reweight_function, eventBelongs selector);
-        singleProcessReweightor(std::vector<weightor> rwgts);
-        singleProcessReweightor(std::vector<weightor> rwgts, eventBelongs selector);
-        singleProcessReweightor(std::vector<weightor> rwgts, eventBelongs selector, weightor normaliser);
+        procReweightor(weightor reweight_function);
+        procReweightor(weightor reweight_function, eventBelongs selector);
+        procReweightor(weightor reweight_function, std::shared_ptr<eventBelongs> selector);
+        procReweightor(std::vector<weightor> rwgts);
+        procReweightor(std::vector<weightor> rwgts, eventBelongs selector);
+        procReweightor(std::vector<weightor> rwgts, std::shared_ptr<eventBelongs> selector);
+        procReweightor(std::vector<weightor> rwgts, eventBelongs selector, weightor normaliser);
+        procReweightor(std::vector<weightor> rwgts, std::shared_ptr<eventBelongs> selector, weightor normaliser);
 
-        eventBelongs event_checker;
+        std::shared_ptr<eventBelongs> event_checker;
+        REX::event_bool_fn event_checker_fn = nullptr;
         weightor normaliser = nullptr;
         std::vector<weightor> reweight_functions = {};
         std::vector<double> normalisation = {};
         std::shared_ptr<process> proc = nullptr;
         std::vector<std::vector<double>> backlog = {};
 
-        singleProcessReweightor &set_event_checker(eventBelongs checker);
-        singleProcessReweightor &set_normaliser(weightor normaliser);
-        singleProcessReweightor &set_reweight_functions(weightor rwgt);
-        singleProcessReweightor &set_reweight_functions(std::vector<weightor> rwgts);
-        singleProcessReweightor &add_reweight_function(weightor rwgt);
-        singleProcessReweightor &set_process(std::shared_ptr<process> p);
+        procReweightor &set_event_checker(eventBelongs checker);
+        procReweightor &set_event_checker(REX::event_bool_fn checker);
+        procReweightor &set_normaliser(weightor normaliser);
+        procReweightor &set_reweight_functions(weightor rwgt);
+        procReweightor &set_reweight_functions(std::vector<weightor> rwgts);
+        procReweightor &add_reweight_function(weightor rwgt);
+        procReweightor &set_process(std::shared_ptr<process> p);
 
         // Member functions for handling reweighting
         void initialise();
@@ -193,16 +204,16 @@ namespace REX::tea
         reweightor &operator=(reweightor &&) = default;
         reweightor(lhe &&lhe);
         reweightor(const lhe &lhe);
-        reweightor(lhe &&mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws);
-        reweightor(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws);
-        reweightor(lhe &&mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws, std::vector<iterator> iters);
-        reweightor(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws, std::vector<iterator> iters);
-        reweightor(lhe &&mother, std::vector<singleProcessReweightor> rws);
-        reweightor(const lhe &mother, std::vector<singleProcessReweightor> rws);
-        reweightor(lhe &&mother, std::vector<singleProcessReweightor> rws, std::vector<iterator> iters);
-        reweightor(const lhe &mother, std::vector<singleProcessReweightor> rws, std::vector<iterator> iters);
+        reweightor(lhe &&mother, std::vector<std::shared_ptr<procReweightor>> rws);
+        reweightor(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws);
+        reweightor(lhe &&mother, std::vector<std::shared_ptr<procReweightor>> rws, std::vector<iterator> iters);
+        reweightor(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws, std::vector<iterator> iters);
+        reweightor(lhe &&mother, std::vector<procReweightor> rws);
+        reweightor(const lhe &mother, std::vector<procReweightor> rws);
+        reweightor(lhe &&mother, std::vector<procReweightor> rws, std::vector<iterator> iters);
+        reweightor(const lhe &mother, std::vector<procReweightor> rws, std::vector<iterator> iters);
 
-        std::vector<std::shared_ptr<singleProcessReweightor>> reweightors;
+        std::vector<std::shared_ptr<procReweightor>> reweightors;
         iterator initialise = true_function;
         iterator finalise = true_function;
         std::vector<iterator> iterators = {true_function};
@@ -223,11 +234,11 @@ namespace REX::tea
         unsigned long pool_threads = 0;
         void setup_pool();
 
-        reweightor &set_reweightors(std::vector<std::shared_ptr<singleProcessReweightor>> rws);
-        reweightor &set_reweightors(std::vector<singleProcessReweightor> rws);
-        reweightor &add_reweightor(std::shared_ptr<singleProcessReweightor> rw);
-        reweightor &add_reweightor(const singleProcessReweightor &rw);
-        reweightor &add_reweightor(singleProcessReweightor &&rw);
+        reweightor &set_reweightors(std::vector<std::shared_ptr<procReweightor>> rws);
+        reweightor &set_reweightors(std::vector<procReweightor> rws);
+        reweightor &add_reweightor(std::shared_ptr<procReweightor> rw);
+        reweightor &add_reweightor(procReweightor &rw);
+        reweightor &add_reweightor(procReweightor &&rw);
         reweightor &set_initialise(iterator init);
         reweightor &set_finalise(iterator fin);
         reweightor &set_iterators(const std::vector<iterator> &iters);
@@ -257,9 +268,9 @@ namespace REX::tea
         param_rwgt &operator=(param_rwgt &&) = default;
 
         param_rwgt(const lhe &mother) : reweightor(mother) {};
-        param_rwgt(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws) : reweightor(mother, rws) {};
+        param_rwgt(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws) : reweightor(mother, rws) {};
 
-        param_rwgt(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws, const std::string &slha_path, const std::string &rwgt_path);
+        param_rwgt(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws, const std::string &slha_path, const std::string &rwgt_path);
 
         rwgt_slha card_iter;
 

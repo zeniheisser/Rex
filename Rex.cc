@@ -1968,7 +1968,7 @@ namespace REX
             .set_spin(false)
             .set_vtim(false)
             .set_momentum(false)
-            .set_status_filter({+1, -1})
+            .set_status_filter(std::vector<int>{+1, -1})
             .set_n(false)
             .set_proc_id(false)
             .set_weight(false)
@@ -1985,7 +1985,7 @@ namespace REX
             .set_mass(true)
             .set_pdg(true)
             .set_momentum(true)
-            .set_status_filter({+1})
+            .set_status_filter(+1)
             .set_vtim(true)
             .set_spin(true)
             .set_mother(true)
@@ -2006,15 +2006,43 @@ namespace REX
 
     eventBelongs::eventBelongs(const event &e)
     {
+        this->events.push_back(std::make_shared<event>(e));
+        this->comparator = external_legs_comparator;
+        this->const_comparator = external_legs_const_comparator;
+    }
+
+    eventBelongs::eventBelongs(std::shared_ptr<event> e)
+    {
         this->events.push_back(e);
+        this->comparator = external_legs_comparator;
+        this->const_comparator = external_legs_const_comparator;
     }
 
     eventBelongs::eventBelongs(std::vector<event> evs)
     {
-        this->events = std::move(evs);
+        this->events = {};
+        for (const auto &e : evs)
+        {
+            this->events.push_back(std::make_shared<event>(e));
+        }
+        this->comparator = external_legs_comparator;
+        this->const_comparator = external_legs_const_comparator;
+    }
+
+    eventBelongs::eventBelongs(std::vector<std::shared_ptr<event>> evs)
+    {
+        this->events = evs;
+        this->comparator = external_legs_comparator;
+        this->const_comparator = external_legs_const_comparator;
     }
 
     eventBelongs::eventBelongs(const event &e, event_equal_fn comp)
+    {
+        this->events.push_back(std::make_shared<event>(e));
+        this->comparator = std::move(comp);
+    }
+
+    eventBelongs::eventBelongs(std::shared_ptr<event> e, event_equal_fn comp)
     {
         this->events.push_back(e);
         this->comparator = std::move(comp);
@@ -2022,36 +2050,91 @@ namespace REX
 
     eventBelongs::eventBelongs(std::vector<event> evs, event_equal_fn comp)
     {
-        this->events = std::move(evs);
+        this->events = {};
+        for (const auto &e : evs)
+        {
+            this->events.push_back(std::make_shared<event>(e));
+        }
+        this->comparator = std::move(comp);
+    }
+
+    eventBelongs::eventBelongs(std::vector<std::shared_ptr<event>> evs, event_equal_fn comp)
+    {
+        this->events = evs;
         this->comparator = std::move(comp);
     }
 
     eventBelongs::eventBelongs(const event &e, cevent_equal_fn comp)
     {
+        this->events.push_back(std::make_shared<event>(e));
+        this->comparator = comp;
+        this->const_comparator = std::move(comp);
+    }
+
+    eventBelongs::eventBelongs(std::shared_ptr<event> e, cevent_equal_fn comp)
+    {
         this->events.push_back(e);
+        this->comparator = comp;
         this->const_comparator = std::move(comp);
     }
 
     eventBelongs::eventBelongs(std::vector<event> evs, cevent_equal_fn comp)
     {
-        this->events = std::move(evs);
+        this->events = {};
+        for (const auto &e : evs)
+        {
+            this->events.push_back(std::make_shared<event>(e));
+        }
+        this->comparator = comp;
+        this->const_comparator = std::move(comp);
+    }
+
+    eventBelongs::eventBelongs(std::vector<std::shared_ptr<event>> evs, cevent_equal_fn comp)
+    {
+        this->events = evs;
+        this->comparator = comp;
         this->const_comparator = std::move(comp);
     }
 
     eventBelongs::eventBelongs(const event &e, event_equal_fn comp, cevent_equal_fn ccomp)
     {
+        this->events.push_back(std::make_shared<event>(e));
+        this->comparator = std::move(comp);
+        this->const_comparator = std::move(ccomp);
+    }
+
+    eventBelongs::eventBelongs(std::shared_ptr<event> e, event_equal_fn comp, cevent_equal_fn ccomp)
+    {
         this->events.push_back(e);
         this->comparator = std::move(comp);
         this->const_comparator = std::move(ccomp);
     }
+
     eventBelongs::eventBelongs(std::vector<event> evs, event_equal_fn comp, cevent_equal_fn ccomp)
     {
-        this->events = std::move(evs);
+        this->events = {};
+        for (const auto &e : evs)
+        {
+            this->events.push_back(std::make_shared<event>(e));
+        }
+        this->comparator = std::move(comp);
+        this->const_comparator = std::move(ccomp);
+    }
+
+    eventBelongs::eventBelongs(std::vector<std::shared_ptr<event>> evs, event_equal_fn comp, cevent_equal_fn ccomp)
+    {
+        this->events = evs;
         this->comparator = std::move(comp);
         this->const_comparator = std::move(ccomp);
     }
 
     eventBelongs &eventBelongs::add_event(const event &e)
+    {
+        this->events.push_back(std::make_shared<event>(e));
+        return *this;
+    }
+
+    eventBelongs &eventBelongs::add_event(std::shared_ptr<event> e)
     {
         this->events.push_back(e);
         return *this;
@@ -2059,11 +2142,30 @@ namespace REX
 
     eventBelongs &eventBelongs::add_event(const std::vector<event> &evs)
     {
-        this->events.insert(this->events.end(), evs.begin(), evs.end());
+        for (const auto &e : evs)
+        {
+            this->events.push_back(std::make_shared<event>(e));
+        }
+        return *this;
+    }
+
+    eventBelongs &eventBelongs::add_event(std::vector<std::shared_ptr<event>> evs)
+    {
+        for (const auto &e : evs)
+        {
+            this->events.push_back(e);
+        }
         return *this;
     }
 
     eventBelongs &eventBelongs::set_events(const event &e)
+    {
+        this->events.clear();
+        this->events.push_back(std::make_shared<event>(e));
+        return *this;
+    }
+
+    eventBelongs &eventBelongs::set_events(std::shared_ptr<event> e)
     {
         this->events.clear();
         this->events.push_back(e);
@@ -2071,6 +2173,16 @@ namespace REX
     }
 
     eventBelongs &eventBelongs::set_events(const std::vector<event> &evs)
+    {
+        this->events = {};
+        for (const auto &e : evs)
+        {
+            this->events.push_back(std::make_shared<event>(e));
+        }
+        return *this;
+    }
+
+    eventBelongs &eventBelongs::set_events(std::vector<std::shared_ptr<event>> evs)
     {
         this->events = evs;
         return *this;
@@ -2084,6 +2196,7 @@ namespace REX
 
     eventBelongs &eventBelongs::set_comparator(cevent_equal_fn comp)
     {
+        this->comparator = comp;
         this->const_comparator = std::move(comp);
         return *this;
     }
@@ -2096,9 +2209,9 @@ namespace REX
     }
 
     // If non-const and an event belongs, set its indices automatically
-    bool eventBelongs::belongs(event &e)
+    bool eventBelongs::belongs_mutable(event &e)
     {
-        if (this->events.empty())
+        if (this->events.empty() && !(this->comparator || this->const_comparator))
         {
             throw std::runtime_error("eventBelongs::belongs() called with no events set");
         }
@@ -2107,20 +2220,20 @@ namespace REX
             if (!this->const_comparator)
                 throw std::runtime_error("eventBelongs::belongs() called with no comparator set");
             // Fallback to const comparator if available
-            return this->belongs(static_cast<const event &>(e));
+            return this->belongs_const(static_cast<const event &>(e));
         }
         for (auto &ev : this->events)
         {
-            if (this->comparator(ev, e))
+            if (this->comparator(*ev, e))
             {
-                e.set_indices(ev);
+                e.set_indices(*ev);
                 return true;
             }
         }
         return false;
     }
 
-    bool eventBelongs::belongs(const event &e) const
+    bool eventBelongs::belongs_const(const event &e) const
     {
         if (this->events.empty())
         {
@@ -2132,12 +2245,43 @@ namespace REX
         }
         for (const auto &ev : this->events)
         {
-            if (this->const_comparator(ev, e))
+            if (this->const_comparator(*ev, e))
             {
                 return true;
             }
         }
         return false;
+    }
+
+    bool eventBelongs::belongs(event &e)
+    {
+        return this->belongs_mutable(e);
+    }
+
+    bool eventBelongs::belongs(const event &e) const
+    {
+        return this->belongs_const(e);
+    }
+
+    bool eventBelongs::belongs(std::shared_ptr<event> e)
+    {
+        return this->belongs_mutable(*e);
+    }
+
+    event_bool_fn eventBelongs::get_event_bool()
+    {
+        return [this](event &e) -> bool
+        {
+            return this->belongs_mutable(e);
+        };
+    }
+
+    cevent_bool_fn eventBelongs::get_const_event_bool() const
+    {
+        return [this](const event &e) -> bool
+        {
+            return this->belongs_const(e);
+        };
     }
 
     eventBelongs all_events_belong()
@@ -2148,73 +2292,273 @@ namespace REX
 
     eventSorter::eventSorter(const eventBelongs &e_set)
     {
-        this->event_sets.push_back(e_set);
+        this->event_sets.push_back(std::make_shared<eventBelongs>(e_set));
+        this->comparators.push_back(this->event_sets.back()->get_event_bool());
+        this->const_comparators.push_back(this->event_sets.back()->get_const_event_bool());
+    }
+
+    eventSorter::eventSorter(event_bool_fn comp)
+    {
+        this->comparators.push_back(std::move(comp));
+    }
+
+    eventSorter::eventSorter(cevent_bool_fn comp)
+    {
+        this->comparators.push_back([comp](event &e)
+                                    { return comp(e); });
+        this->const_comparators.push_back(std::move(comp));
+    }
+
+    eventSorter::eventSorter(event_bool_fn comp, cevent_bool_fn ccomp)
+    {
+        this->comparators.push_back(std::move(comp));
+        this->const_comparators.push_back(std::move(ccomp));
     }
 
     eventSorter::eventSorter(std::vector<eventBelongs> e_sets)
     {
-        this->event_sets = std::move(e_sets);
+        this->event_sets = {};
+        for (const auto &es : e_sets)
+        {
+            this->event_sets.push_back(std::make_shared<eventBelongs>(es));
+            this->comparators.push_back(this->event_sets.back()->get_event_bool());
+            this->const_comparators.push_back(this->event_sets.back()->get_const_event_bool());
+        }
+    }
+
+    eventSorter::eventSorter(std::vector<event_bool_fn> comps)
+    {
+        this->comparators = std::move(comps);
+    }
+
+    eventSorter::eventSorter(std::vector<event_bool_fn> comps, std::vector<cevent_bool_fn> ccomps)
+    {
+        if (comps.size() != ccomps.size())
+        {
+            throw std::runtime_error("eventSorter: size mismatch in constructor");
+        }
+        this->comparators = std::move(comps);
+        this->const_comparators = std::move(ccomps);
     }
 
     eventSorter &eventSorter::add_event_set(const eventBelongs &e_set)
     {
-        this->event_sets.push_back(e_set);
+        this->event_sets.push_back(std::make_shared<eventBelongs>(e_set));
+        this->comparators.push_back(this->event_sets.back()->get_event_bool());
+        this->const_comparators.push_back(this->event_sets.back()->get_const_event_bool());
         return *this;
     }
 
     eventSorter &eventSorter::add_event_set(const std::vector<eventBelongs> &e_sets)
     {
-        this->event_sets.insert(this->event_sets.end(), e_sets.begin(), e_sets.end());
+        size_t old_size = this->event_sets.size();
+        for (const auto &es : e_sets)
+        {
+            this->event_sets.push_back(std::make_shared<eventBelongs>(es));
+        }
+        this->comparators.reserve(this->event_sets.size());
+        this->const_comparators.reserve(this->event_sets.size());
+        for (size_t i = old_size; i < this->event_sets.size(); ++i)
+        {
+            auto &es = this->event_sets[i];
+            this->comparators.push_back(es->get_event_bool());
+            this->const_comparators.push_back(es->get_const_event_bool());
+        }
+        return *this;
+    }
+
+    eventSorter &eventSorter::add_bool(event_bool_fn comp)
+    {
+        this->comparators.push_back(std::move(comp));
+        return *this;
+    }
+
+    eventSorter &eventSorter::add_const_bool(cevent_bool_fn comp)
+    {
+        this->comparators.push_back([comp](event &e)
+                                    { return comp(e); });
+        this->const_comparators.push_back(std::move(comp));
+        return *this;
+    }
+
+    eventSorter &eventSorter::add_bool(event_bool_fn comp, cevent_bool_fn ccomp)
+    {
+        this->comparators.push_back(std::move(comp));
+        this->const_comparators.push_back(std::move(ccomp));
+        return *this;
+    }
+
+    eventSorter &eventSorter::add_bool(std::vector<event_bool_fn> comps)
+    {
+        this->comparators.insert(this->comparators.end(), std::make_move_iterator(comps.begin()), std::make_move_iterator(comps.end()));
+        return *this;
+    }
+
+    eventSorter &eventSorter::add_const_bool(std::vector<cevent_bool_fn> ccomps)
+    {
+        for (auto &c : ccomps)
+        {
+            this->comparators.push_back([c](event &e)
+                                        { return c(e); });
+        }
+        this->const_comparators.insert(this->const_comparators.end(), std::make_move_iterator(ccomps.begin()), std::make_move_iterator(ccomps.end()));
+        return *this;
+    }
+
+    eventSorter &eventSorter::add_bool(std::vector<event_bool_fn> comps, std::vector<cevent_bool_fn> ccomps)
+    {
+        if (comps.size() != ccomps.size())
+        {
+            throw std::runtime_error("eventSorter::add_bool: size mismatch");
+        }
+        this->comparators.insert(this->comparators.end(), std::make_move_iterator(comps.begin()), std::make_move_iterator(comps.end()));
+        this->const_comparators.insert(this->const_comparators.end(), std::make_move_iterator(ccomps.begin()), std::make_move_iterator(ccomps.end()));
         return *this;
     }
 
     eventSorter &eventSorter::set_event_sets(const eventBelongs &e_set)
     {
         this->event_sets.clear();
-        this->event_sets.push_back(e_set);
+        this->event_sets.push_back(std::make_shared<eventBelongs>(e_set));
+        this->comparators.clear();
+        this->const_comparators.clear();
+        this->comparators.push_back(this->event_sets.back()->get_event_bool());
+        this->const_comparators.push_back(this->event_sets.back()->get_const_event_bool());
         return *this;
     }
 
     eventSorter &eventSorter::set_event_sets(const std::vector<eventBelongs> &e_sets)
     {
-        this->event_sets = e_sets;
+        this->event_sets = {};
+        this->comparators.clear();
+        this->const_comparators.clear();
+        this->event_sets.reserve(e_sets.size());
+        for (const auto &es : e_sets)
+        {
+            this->event_sets.push_back(std::make_shared<eventBelongs>(es));
+            this->comparators.push_back(this->event_sets.back()->get_event_bool());
+            this->const_comparators.push_back(this->event_sets.back()->get_const_event_bool());
+        }
+        return *this;
+    }
+
+    eventSorter &eventSorter::set_bools(event_bool_fn comp)
+    {
+        this->event_sets.clear();
+        this->comparators = {std::move(comp)};
+        this->const_comparators.clear();
+        return *this;
+    }
+
+    eventSorter &eventSorter::set_const_bools(cevent_bool_fn comp)
+    {
+        this->event_sets.clear();
+        this->comparators = {[comp](event &e)
+                             { return comp(e); }};
+        this->const_comparators = {std::move(comp)};
+        return *this;
+    }
+
+    eventSorter &eventSorter::set_bools(event_bool_fn comp, cevent_bool_fn ccomp)
+    {
+        this->event_sets.clear();
+        this->comparators = {std::move(comp)};
+        this->const_comparators = {std::move(ccomp)};
+        return *this;
+    }
+
+    eventSorter &eventSorter::set_bools(std::vector<event_bool_fn> comps)
+    {
+        this->event_sets.clear();
+        this->comparators = std::move(comps);
+        this->const_comparators.clear();
+        return *this;
+    }
+
+    eventSorter &eventSorter::set_const_bools(std::vector<cevent_bool_fn> ccomps)
+    {
+        this->event_sets.clear();
+        this->comparators = {};
+        for (const auto &c : ccomps)
+        {
+            this->comparators.push_back([c](event &e)
+                                        { return c(e); });
+        }
+        this->const_comparators = std::move(ccomps);
+        return *this;
+    }
+
+    eventSorter &eventSorter::set_bools(std::vector<event_bool_fn> comps, std::vector<cevent_bool_fn> ccomps)
+    {
+        if (comps.size() != ccomps.size())
+        {
+            throw std::runtime_error("eventSorter::set_bools: size mismatch");
+        }
+        this->event_sets.clear();
+        this->comparators = std::move(comps);
+        this->const_comparators = std::move(ccomps);
         return *this;
     }
 
     size_t eventSorter::size() const
     {
-        return this->event_sets.size();
+        if (this->comparators.size() != this->const_comparators.size() && this->const_comparators.size() != 0)
+        {
+            throw std::runtime_error("eventSorter::size(): Inconsistent internal state in eventSorter");
+        }
+        return std::max(this->comparators.size(), this->event_sets.size());
+    }
+
+    void eventSorter::extract_comparators()
+    {
+        this->comparators.clear();
+        this->const_comparators.clear();
+        for (auto &es : this->event_sets)
+        {
+            this->comparators.push_back(es->get_event_bool());
+            this->const_comparators.push_back(es->get_const_event_bool());
+        }
     }
 
     size_t eventSorter::position(event &e)
     {
-        for (size_t i = 0; i < this->event_sets.size(); ++i)
+        if (this->comparators.size() < this->event_sets.size())
+            this->extract_comparators();
+
+        for (size_t i = 0; i < this->comparators.size(); ++i)
         {
-            if (this->event_sets[i].belongs(e))
-            {
+            if (!this->comparators[i])
+                continue;
+            if (this->comparators[i](e))
                 return i;
-            }
         }
         return npos;
     }
 
     size_t eventSorter::position(const event &e) const
     {
-        for (size_t i = 0; i < this->event_sets.size(); ++i)
+        if (this->const_comparators.size() < this->event_sets.size())
+            const_cast<eventSorter *>(this)->extract_comparators();
+
+        for (size_t i = 0; i < this->const_comparators.size(); ++i)
         {
-            if (this->event_sets[i].belongs(e))
-            {
+            if (!this->const_comparators[i])
+                continue;
+            if (this->const_comparators[i](e))
                 return i;
-            }
         }
         return npos;
     }
 
     size_t eventSorter::position(std::shared_ptr<event> e)
     {
-        for (size_t i = 0; i < this->event_sets.size(); ++i)
+        if (this->comparators.size() < this->event_sets.size())
         {
-            if (this->event_sets[i].belongs(*e))
+            this->extract_comparators();
+        }
+        for (size_t i = 0; i < this->comparators.size(); ++i)
+        {
+            if (this->comparators[i](*e))
             {
                 return i;
             }
@@ -5430,39 +5774,43 @@ namespace REX
                              std::shared_ptr<xmlNode>>;
     template class lheWriter<InitToXmlFn, EventToXmlFn, HeaderToXmlFn>;
 
-    const xmlBuilder &xml_builder()
+    const xmlReader &xml_reader()
     {
-        static const xmlBuilder b{&xml_to_init, &xml_to_event, &xml_to_any};
+        static const xmlReader b{&xml_to_init, &xml_to_event, &xml_to_any};
         return b;
     }
 
-    const xmlTranslator &xml_translator()
+    const xmlWriter &xml_writer()
     {
-        static const xmlTranslator t{&init_to_xml, &event_to_xml, &header_to_xml};
+        static const xmlWriter t{&init_to_xml, &event_to_xml, &header_to_xml};
         return t;
     }
 
     xmlRaw to_xml_raw(const lhe &doc)
     {
-        return xml_translator().to_raw(doc);
+        return xml_writer().to_raw(doc);
     }
 
     std::shared_ptr<xmlNode> to_xml(xmlRaw &raw)
     {
         std::stringstream ss;
         ss << "<LesHouchesEvents version=\"3.0\">\n";
-        if (*raw.header)
+
+        if (raw.header && *raw.header) // first: has optional, second: non-null shared_ptr
         {
             (*raw.header)->write(ss);
-            (*raw.header).reset();
+            raw.header.reset(); // reset the optional itself
         }
+
         raw.init->write(ss);
         raw.init.reset();
+
         for (auto &event : raw.events)
         {
             event->write(ss);
             event.reset();
         }
+
         ss << "\n</LesHouchesEvents>";
         return xmlNode::parse(ss.str());
     }
@@ -5475,11 +5823,11 @@ namespace REX
 
     lhe to_lhe(std::shared_ptr<xmlNode> node)
     {
-        auto builder = xml_builder();
+        auto builder = xml_reader();
         auto init = node->get_child("init");
         auto events = node->get_children("event");
         auto header = std::make_optional(node->get_child("header"));
-        return builder.build(init, events, header);
+        return builder.read(init, events, header);
     }
 
     lhe to_lhe(const std::string &xml)
@@ -5661,8 +6009,6 @@ namespace REX
         return os.str();
     }
 
-    // ---------- public API ----------
-
     void slha::read(std::istream &in)
     {
         blocks_.clear();
@@ -5754,7 +6100,6 @@ namespace REX
 
                 current->entries[std::move(idx)] = val;
             }
-            // otherwise: ignore loose line
         }
     }
 

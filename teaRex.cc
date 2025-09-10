@@ -339,48 +339,73 @@ namespace REX::tea
         return cancel_.load(std::memory_order_relaxed);
     }
 
-    singleProcessReweightor::singleProcessReweightor(weightor reweight_function)
+    procReweightor::procReweightor(weightor reweight_function)
     {
         this->reweight_functions.push_back(reweight_function);
     }
 
-    singleProcessReweightor::singleProcessReweightor(weightor reweight_function, eventBelongs selector)
+    procReweightor::procReweightor(weightor reweight_function, eventBelongs selector)
+    {
+        this->reweight_functions.push_back(reweight_function);
+        this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
+        this->event_checker_fn = this->event_checker->get_event_bool();
+    }
+
+    procReweightor::procReweightor(weightor reweight_function, std::shared_ptr<eventBelongs> selector)
     {
         this->reweight_functions.push_back(reweight_function);
         this->event_checker = selector;
+        this->event_checker_fn = selector->get_event_bool();
     }
 
-    singleProcessReweightor::singleProcessReweightor(std::vector<weightor> rwgts)
+    procReweightor::procReweightor(std::vector<weightor> rwgts)
     {
         this->reweight_functions = rwgts;
     }
 
-    singleProcessReweightor::singleProcessReweightor(std::vector<weightor> rwgts, eventBelongs selector)
-    {
-        this->reweight_functions = rwgts;
-        this->event_checker = selector;
-    }
-
-    singleProcessReweightor::singleProcessReweightor(std::vector<weightor> rwgts, eventBelongs selector, weightor normaliser)
+    procReweightor::procReweightor(std::vector<weightor> rwgts, std::shared_ptr<eventBelongs> selector)
     {
         this->reweight_functions = rwgts;
         this->event_checker = selector;
+        this->event_checker_fn = selector->get_event_bool();
+    }
+
+    procReweightor::procReweightor(std::vector<weightor> rwgts, eventBelongs selector)
+    {
+        this->reweight_functions = rwgts;
+        this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
+        this->event_checker_fn = this->event_checker->get_event_bool();
+    }
+
+    procReweightor::procReweightor(std::vector<weightor> rwgts, eventBelongs selector, weightor normaliser)
+    {
+        this->reweight_functions = rwgts;
+        this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
+        this->event_checker_fn = this->event_checker->get_event_bool();
         this->normaliser = normaliser;
     }
 
-    singleProcessReweightor &singleProcessReweightor::set_event_checker(eventBelongs checker)
+    procReweightor &procReweightor::set_event_checker(eventBelongs checker)
     {
-        this->event_checker = checker;
+        this->event_checker = std::make_shared<eventBelongs>(std::move(checker));
+        this->event_checker_fn = this->event_checker->get_event_bool();
         return *this;
     }
 
-    singleProcessReweightor &singleProcessReweightor::set_normaliser(weightor normaliser)
+    procReweightor &procReweightor::set_event_checker(REX::event_bool_fn checker)
+    {
+        this->event_checker = nullptr;
+        this->event_checker_fn = checker;
+        return *this;
+    }
+
+    procReweightor &procReweightor::set_normaliser(weightor normaliser)
     {
         this->normaliser = normaliser;
         return *this;
     }
 
-    singleProcessReweightor &singleProcessReweightor::set_reweight_functions(weightor rwgt)
+    procReweightor &procReweightor::set_reweight_functions(weightor rwgt)
     {
         this->reweight_functions = {rwgt};
         if (!this->normaliser)
@@ -388,46 +413,46 @@ namespace REX::tea
         return *this;
     }
 
-    singleProcessReweightor &singleProcessReweightor::set_reweight_functions(std::vector<weightor> rwgts)
+    procReweightor &procReweightor::set_reweight_functions(std::vector<weightor> rwgts)
     {
         this->reweight_functions = rwgts;
         return *this;
     }
 
-    singleProcessReweightor &singleProcessReweightor::add_reweight_function(weightor rwgt)
+    procReweightor &procReweightor::add_reweight_function(weightor rwgt)
     {
         this->reweight_functions.push_back(rwgt);
         return *this;
     }
 
-    singleProcessReweightor &singleProcessReweightor::set_process(std::shared_ptr<process> p)
+    procReweightor &procReweightor::set_process(std::shared_ptr<process> p)
     {
         this->proc = p;
         return *this;
     }
 
     // Member functions for handling reweighting
-    void singleProcessReweightor::initialise()
+    void procReweightor::initialise()
     {
         if (!this->proc)
-            throw std::runtime_error("singleProcessReweightor::initialise: process not set before initialisation");
+            throw std::runtime_error("procReweightor::initialise: process not set before initialisation");
         if (!this->normaliser)
         {
             if (this->reweight_functions.empty())
             {
-                warning("singleProcessReweightor::initialise: no reweight functions set, process will only yield zero weights.");
+                warning("procReweightor::initialise: no reweight functions set, process will only yield zero weights.");
                 this->normalisation = std::vector<double>(this->proc->weight_.size(), 0.0);
                 return;
             }
             if (this->reweight_functions.size() != 1)
-                warning("singleProcessReweightor::initialise: multiple reweight functions set, assuming first is default evaluator and using it for normalisation.");
+                warning("procReweightor::initialise: multiple reweight functions set, assuming first is default evaluator and using it for normalisation.");
             this->normaliser = this->reweight_functions[0];
         }
         auto normalised = this->normaliser(*this->proc);
         if (!normalised)
-            throw std::runtime_error("singleProcessReweightor::initialise: normaliser function returned null pointer");
+            throw std::runtime_error("procReweightor::initialise: normaliser function returned null pointer");
         if (normalised->size() != this->proc->weight_.size())
-            throw std::runtime_error("singleProcessReweightor::initialise: normalisation vector size does not match number of original weights in process");
+            throw std::runtime_error("procReweightor::initialise: normalisation vector size does not match number of original weights in process");
         this->normalisation = *normalised;
         std::transform(this->normalisation.begin(), this->normalisation.end(), this->normalisation.begin(),
                        [](double val)
@@ -435,47 +460,47 @@ namespace REX::tea
         this->normalisation = *REX::vec_elem_mult<double>(this->normalisation, this->proc->weight_);
     }
 
-    void singleProcessReweightor::initialise(std::shared_ptr<process> p)
+    void procReweightor::initialise(std::shared_ptr<process> p)
     {
         this->proc = p;
         initialise();
     }
 
-    void singleProcessReweightor::evaluate()
+    void procReweightor::evaluate()
     {
         return this->evaluate(0);
     }
 
-    void singleProcessReweightor::evaluate(size_t amp)
+    void procReweightor::evaluate(size_t amp)
     {
         if (!this->proc)
-            throw std::runtime_error("singleProcessReweightor::evaluate: process not set before evaluation");
+            throw std::runtime_error("procReweightor::evaluate: process not set before evaluation");
         if (this->reweight_functions.size() <= amp)
             return this->append_zero_weights();
         if (this->normalisation.empty())
             this->initialise();
         auto newweights = this->reweight_functions[amp](*this->proc);
         if (!newweights)
-            throw std::runtime_error("singleProcessReweightor::evaluate: reweight function returned null pointer");
+            throw std::runtime_error("procReweightor::evaluate: reweight function returned null pointer");
         this->backlog.push_back(std::move(*newweights));
     }
 
-    void singleProcessReweightor::append_zero_weights()
+    void procReweightor::append_zero_weights()
     {
         if (!this->proc)
-            throw std::runtime_error("singleProcessReweightor::append_zero_weights: process not set before appending zero weights");
+            throw std::runtime_error("procReweightor::append_zero_weights: process not set before appending zero weights");
         this->backlog.push_back(std::vector<double>(this->proc->weight_.size(), 0.0));
     }
 
-    void singleProcessReweightor::append_backlog()
+    void procReweightor::append_backlog()
     {
         if (this->normalisation.empty())
-            throw std::runtime_error("singleProcessReweightor::append_backlog: normalisation is empty; call initialise() first");
+            throw std::runtime_error("procReweightor::append_backlog: normalisation is empty; call initialise() first");
 
         for (auto &weights : this->backlog)
         {
             if (weights.size() != this->normalisation.size())
-                throw std::runtime_error("singleProcessReweightor::append_backlog: size mismatch between weights and normalisation");
+                throw std::runtime_error("procReweightor::append_backlog: size mismatch between weights and normalisation");
 
             this->proc->append_wgts(*REX::vec_elem_mult<double>(weights, this->normalisation));
         }
@@ -486,63 +511,63 @@ namespace REX::tea
 
     reweightor::reweightor(const lhe &mother) : lhe(mother) {}
 
-    reweightor::reweightor(lhe &&mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws) : lhe(std::move(mother)), reweightors(rws) {}
+    reweightor::reweightor(lhe &&mother, std::vector<std::shared_ptr<procReweightor>> rws) : lhe(std::move(mother)), reweightors(rws) {}
 
-    reweightor::reweightor(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws) : lhe(mother), reweightors(rws) {}
+    reweightor::reweightor(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws) : lhe(mother), reweightors(rws) {}
 
-    reweightor::reweightor(lhe &&mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws, std::vector<iterator> iters) : lhe(std::move(mother)), reweightors(rws), iterators(std::move(iters)) {}
+    reweightor::reweightor(lhe &&mother, std::vector<std::shared_ptr<procReweightor>> rws, std::vector<iterator> iters) : lhe(std::move(mother)), reweightors(rws), iterators(std::move(iters)) {}
 
-    reweightor::reweightor(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws, std::vector<iterator> iters) : lhe(mother), reweightors(rws), iterators(std::move(iters)) {}
+    reweightor::reweightor(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws, std::vector<iterator> iters) : lhe(mother), reweightors(rws), iterators(std::move(iters)) {}
 
-    reweightor::reweightor(lhe &&mother, std::vector<singleProcessReweightor> rws) : lhe(std::move(mother))
+    reweightor::reweightor(lhe &&mother, std::vector<procReweightor> rws) : lhe(std::move(mother))
     {
         this->set_reweightors(rws);
     }
 
-    reweightor::reweightor(const lhe &mother, std::vector<singleProcessReweightor> rws) : lhe(mother)
+    reweightor::reweightor(const lhe &mother, std::vector<procReweightor> rws) : lhe(mother)
     {
         this->set_reweightors(rws);
     }
 
-    reweightor::reweightor(lhe &&mother, std::vector<singleProcessReweightor> rws, std::vector<iterator> iters) : lhe(std::move(mother)), iterators(std::move(iters))
+    reweightor::reweightor(lhe &&mother, std::vector<procReweightor> rws, std::vector<iterator> iters) : lhe(std::move(mother)), iterators(std::move(iters))
     {
         this->set_reweightors(rws);
     }
 
-    reweightor::reweightor(const lhe &mother, std::vector<singleProcessReweightor> rws, std::vector<iterator> iters) : lhe(mother), iterators(std::move(iters))
+    reweightor::reweightor(const lhe &mother, std::vector<procReweightor> rws, std::vector<iterator> iters) : lhe(mother), iterators(std::move(iters))
     {
         this->set_reweightors(rws);
     }
 
-    reweightor &reweightor::set_reweightors(std::vector<std::shared_ptr<singleProcessReweightor>> rws)
+    reweightor &reweightor::set_reweightors(std::vector<std::shared_ptr<procReweightor>> rws)
     {
         this->reweightors = rws;
         return *this;
     }
 
-    reweightor &reweightor::set_reweightors(std::vector<singleProcessReweightor> rws)
+    reweightor &reweightor::set_reweightors(std::vector<procReweightor> rws)
     {
         this->reweightors.clear();
         for (auto &rw : rws)
         {
-            this->reweightors.push_back(std::make_shared<singleProcessReweightor>(std::move(rw)));
+            this->reweightors.push_back(std::make_shared<procReweightor>(std::move(rw)));
         }
         return *this;
     }
 
-    reweightor &reweightor::add_reweightor(const singleProcessReweightor &rw)
+    reweightor &reweightor::add_reweightor(procReweightor &rw)
     {
-        this->reweightors.push_back(std::make_shared<singleProcessReweightor>(rw));
+        this->reweightors.push_back(std::make_shared<procReweightor>(rw));
         return *this;
     }
 
-    reweightor &reweightor::add_reweightor(singleProcessReweightor &&rw)
+    reweightor &reweightor::add_reweightor(procReweightor &&rw)
     {
-        this->reweightors.push_back(std::make_shared<singleProcessReweightor>(std::move(rw)));
+        this->reweightors.push_back(std::make_shared<procReweightor>(std::move(rw)));
         return *this;
     }
 
-    reweightor &reweightor::add_reweightor(std::shared_ptr<singleProcessReweightor> rw)
+    reweightor &reweightor::add_reweightor(std::shared_ptr<procReweightor> rw)
     {
         this->reweightors.push_back(rw);
         return *this;
@@ -595,7 +620,6 @@ namespace REX::tea
         if (this->events.empty())
             throw std::runtime_error("reweightor::calc_norm: no events loaded, cannot calculate norm");
         this->norm_factor = 1.0;
-        // cases for if this->idWgt has absolute value 1,2,3,4, or something else
         if (std::abs(this->idWgt_) == 3)
         {
             this->norm_factor = std::accumulate(this->xSec_.begin(), this->xSec_.end(), 0.0);
@@ -650,58 +674,79 @@ namespace REX::tea
     void reweightor::extract_sorter()
     {
         if (this->reweightors.empty())
-            throw std::runtime_error("reweightor::extract_sorter: no singleProcessReweightors set in reweightor");
-        std::vector<eventBelongs> event_checkers;
-        for (const auto &rwgt : this->reweightors)
+            throw std::runtime_error("reweightor::extract_sorter: no procReweightors set in reweightor");
+
+        std::vector<event_bool_fn> preds;
+        preds.reserve(this->reweightors.size());
+        for (const auto &rw : this->reweightors)
         {
-            event_checkers.push_back(rwgt->event_checker);
+            if (rw->event_checker_fn)
+            {
+                preds.push_back(rw->event_checker_fn);
+            }
+            else
+            {
+                preds.push_back(rw->event_checker->get_event_bool());
+            }
         }
-        // Do something with event_checkers
-        this->set_sorter(eventSorter(event_checkers));
+
+        this->set_sorter(eventSorter(std::move(preds)));
         this->sorted_events.clear();
         this->processes.clear();
         this->sort_events();
         this->events_to_processes();
-        if (this->processes.size() - 1 == this->reweightors.size())
+
+        const size_t R = this->reweightors.size();
+        const size_t B = this->processes.size();
+        const bool has_unsorted = (B == R + 1);
+        auto processes_full = this->processes;
+
+        std::vector<size_t> keep;
+        keep.reserve(R);
+        for (size_t i = 0; i < R; ++i)
+            if (!processes_full[i]->events.empty())
+                keep.push_back(i);
+
+        std::vector<std::shared_ptr<process>> procs;
+        std::vector<std::shared_ptr<procReweightor>> rwgs;
+        procs.reserve(keep.size() + (has_unsorted ? 1u : 0u));
+        rwgs.reserve(keep.size() + (has_unsorted ? 1u : 0u));
+
+        for (size_t i : keep)
         {
-            warning("reweightor::extract_sorter: number of processes does not match number of reweightors, suggesting events which failed to be sorted. Appending zero weights.");
-            this->reweightors.push_back(std::make_shared<singleProcessReweightor>());
-            this->reweightors.back()->set_process(this->processes.back());
+            procs.push_back(processes_full[i]);
+            rwgs.push_back(this->reweightors[i]);
         }
-        std::vector<size_t> valid_procs;
-        for (size_t i = 0; i < this->processes.size(); ++i)
+
+        if (has_unsorted && !processes_full.back()->events.empty())
         {
-            if (this->processes[i]->events.empty())
-                continue;
-            valid_procs.push_back(i);
+            procs.push_back(processes_full.back());
+
+            auto dummy = std::make_shared<procReweightor>();
+            rwgs.push_back(std::move(dummy));
         }
-        std::vector<std::shared_ptr<process>> new_procs;
-        std::vector<std::shared_ptr<singleProcessReweightor>> new_rwgs;
-        for (auto i : valid_procs)
-        {
-            new_procs.push_back(this->processes[i]);
-            new_rwgs.push_back(this->reweightors[i]);
-        }
-        this->processes = new_procs;
-        this->reweightors = new_rwgs;
+
+        this->processes = std::move(procs);
+        this->reweightors = std::move(rwgs);
+
+        if (this->processes.size() != this->reweightors.size())
+            throw std::runtime_error("reweightor::extract_sorter: number of processes does not match number of reweightors.");
+
         for (size_t i = 0; i < this->reweightors.size(); ++i)
         {
-            auto p = this->processes[i];
+            auto &p = this->processes[i];
             p->validate();
             this->reweightors[i]->set_process(p);
         }
-        if (this->processes.size() != this->reweightors.size())
-            throw std::runtime_error("reweightor::extract_sorter: number of processes does not match number of reweightors, something went wrong.");
     }
 
     void reweightor::initialise_reweightors()
     {
-        if (this->sorted_events.size() != this->sorter.size())
-            this->reweightors.push_back(std::make_shared<singleProcessReweightor>());
+        if (this->reweightors.size() != this->processes.size())
+            throw std::runtime_error("initialise_reweightors: reweightors/processes size mismatch");
+
         for (size_t i = 0; i < this->reweightors.size(); ++i)
-        {
             this->reweightors[i]->initialise(this->processes[i]);
-        }
     }
 
     void reweightor::finalise_reweighting()
@@ -733,10 +778,13 @@ namespace REX::tea
             throw std::runtime_error("reweightor::setup: initialise iterator returned false, something went wrong.");
         this->extract_sorter();
         this->initialise_reweightors();
+        this->n_amps = 0;
         for (auto &rwgt : this->reweightors)
         {
-            this->n_amps = std::max(this->n_amps, rwgt->reweight_functions.size());
+            size_t amps = rwgt->reweight_functions.size();
+            this->n_amps = std::max(this->n_amps, amps);
         }
+
         if (this->n_amps == 0)
         {
             throw std::runtime_error("reweightor::setup: no reweight functions found, something went wrong.");
@@ -856,7 +904,7 @@ namespace REX::tea
         }
     }
 
-    param_rwgt::param_rwgt(const lhe &mother, std::vector<std::shared_ptr<singleProcessReweightor>> rws, const std::string &slha_path, const std::string &rwgt_path)
+    param_rwgt::param_rwgt(const lhe &mother, std::vector<std::shared_ptr<procReweightor>> rws, const std::string &slha_path, const std::string &rwgt_path)
         : reweightor(mother, rws)
     {
         this->read_slha_rwgt(slha_path, rwgt_path);

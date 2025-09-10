@@ -1591,7 +1591,7 @@ namespace REX
             }
             if (it->second.type() != typeid(T))
             {
-                throw std::bad_any_cast("event::get: Parameter '" + name + "' is not of requested type");
+                throw std::runtime_error("event::get: Parameter '" + name + "' is not of requested type");
             }
             return std::any_cast<T &>(it->second);
         }
@@ -2158,7 +2158,7 @@ namespace REX
     struct eventBelongs
     {
     public:
-        std::vector<event> events = {};
+        std::vector<std::shared_ptr<event>> events = {};
         event_equal_fn comparator = external_legs_comparator;
         cevent_equal_fn const_comparator = external_legs_const_comparator;
         // Default constructors
@@ -2169,25 +2169,40 @@ namespace REX
         eventBelongs &operator=(eventBelongs &&) noexcept = default;
         // Constructor with one event
         explicit eventBelongs(const event &e);
+        explicit eventBelongs(std::shared_ptr<event> e);
         // Constructor with multiple events
         explicit eventBelongs(std::vector<event> evts);
+        explicit eventBelongs(std::vector<std::shared_ptr<event>> evts);
         // Constructors with comparator
         explicit eventBelongs(const event &e, event_equal_fn comp);
+        explicit eventBelongs(std::shared_ptr<event> e, event_equal_fn comp);
         explicit eventBelongs(std::vector<event> evts, event_equal_fn comp);
+        explicit eventBelongs(std::vector<std::shared_ptr<event>> evts, event_equal_fn comp);
         explicit eventBelongs(const event &e, cevent_equal_fn comp);
+        explicit eventBelongs(std::shared_ptr<event> e, cevent_equal_fn comp);
         explicit eventBelongs(std::vector<event> evts, cevent_equal_fn comp);
+        explicit eventBelongs(std::vector<std::shared_ptr<event>> evts, cevent_equal_fn comp);
         explicit eventBelongs(const event &e, event_equal_fn comp, cevent_equal_fn ccomp);
+        explicit eventBelongs(std::shared_ptr<event> e, event_equal_fn comp, cevent_equal_fn ccomp);
         explicit eventBelongs(std::vector<event> evts, event_equal_fn comp, cevent_equal_fn ccomp);
+        explicit eventBelongs(std::vector<std::shared_ptr<event>> evts, event_equal_fn comp, cevent_equal_fn ccomp);
         // Add an event to the set
         eventBelongs &add_event(const event &e);
+        eventBelongs &add_event(std::shared_ptr<event> e);
         eventBelongs &add_event(const std::vector<event> &evts);
+        eventBelongs &add_event(std::vector<std::shared_ptr<event>> evts);
         // Self-returning setting functions
         eventBelongs &set_events(const event &e);
+        eventBelongs &set_events(std::shared_ptr<event> e);
         eventBelongs &set_events(const std::vector<event> &evts);
+        eventBelongs &set_events(std::vector<std::shared_ptr<event>> evts);
         eventBelongs &set_comparator(event_equal_fn comp);
         eventBelongs &set_comparator(cevent_equal_fn comp);
         eventBelongs &set_comparator(const eventComparatorConfig &cfg);
         // Check if an event belongs to the set
+        bool belongs_mutable(event &e);
+        bool belongs_const(const event &e) const;
+        bool belongs(std::shared_ptr<event> e);
         bool belongs(event &e);
         bool belongs(const event &e) const;
         // Overload parenthesis operator for easy usage
@@ -2211,7 +2226,9 @@ namespace REX
     // Struct to sort events by their belonging to sets of events
     struct eventSorter
     {
-        std::vector<eventBelongs> event_sets = {};
+        std::vector<std::shared_ptr<eventBelongs>> event_sets = {};
+        std::vector<event_bool_fn> comparators = {};
+        std::vector<cevent_bool_fn> const_comparators = {};
         // Default constructors
         eventSorter() = default;
         eventSorter(const eventSorter &) = default;
@@ -2220,14 +2237,32 @@ namespace REX
         eventSorter &operator=(eventSorter &&) noexcept = default;
         // Constructor with one event set
         explicit eventSorter(const eventBelongs &e_set);
+        explicit eventSorter(event_bool_fn comp);
+        explicit eventSorter(cevent_bool_fn comp);
+        explicit eventSorter(event_bool_fn comp, cevent_bool_fn ccomp);
         // Constructor with multiple event sets
         explicit eventSorter(std::vector<eventBelongs> e_sets);
+        explicit eventSorter(std::vector<event_bool_fn> comps);
+        explicit eventSorter(std::vector<event_bool_fn> comps, std::vector<cevent_bool_fn> ccomps);
+        void extract_comparators();
         // Add an event set to the sorter
         eventSorter &add_event_set(const eventBelongs &e_set);
         eventSorter &add_event_set(const std::vector<eventBelongs> &e_sets);
+        eventSorter &add_bool(event_bool_fn comp);
+        eventSorter &add_const_bool(cevent_bool_fn comp);
+        eventSorter &add_bool(event_bool_fn comp, cevent_bool_fn ccomp);
+        eventSorter &add_bool(std::vector<event_bool_fn> comps);
+        eventSorter &add_const_bool(std::vector<cevent_bool_fn> ccomps);
+        eventSorter &add_bool(std::vector<event_bool_fn> comps, std::vector<cevent_bool_fn> ccomps);
         // Self-returning setting functions
         eventSorter &set_event_sets(const eventBelongs &e_set);
         eventSorter &set_event_sets(const std::vector<eventBelongs> &e_sets);
+        eventSorter &set_bools(const event_bool_fn comp);
+        eventSorter &set_const_bools(const cevent_bool_fn comp);
+        eventSorter &set_bools(const event_bool_fn comp, const cevent_bool_fn ccomp);
+        eventSorter &set_bools(const std::vector<event_bool_fn> comps);
+        eventSorter &set_const_bools(const std::vector<cevent_bool_fn> comps);
+        eventSorter &set_bools(const std::vector<event_bool_fn> comps, const std::vector<cevent_bool_fn> ccomps);
         // size() function just returns the number of event sets
         size_t size() const;
         // Function to find the position of an event in the sorter, returns npos if not found
@@ -3039,15 +3074,15 @@ namespace REX
             return *this;
         }
 
-        // Build from raw inputs
+        // Read from raw inputs
         template <class EventRange>
-        lhe build(const InitRaw &init_raw,
-                  const EventRange &events_raw,
-                  std::optional<HeaderRaw> header_raw = std::nullopt) const
+        lhe read(const InitRaw &init_raw,
+                 const EventRange &events_raw,
+                 std::optional<HeaderRaw> header_raw = std::nullopt) const
         {
             ensure_ready_();
 
-            // 1) Build initNode and validate
+            // 1) Read initNode and validate
             initNode init = init_tx_(init_raw);
             init.validate_init();
 
@@ -3106,7 +3141,7 @@ namespace REX
               class InitTx,
               class EventTx,
               class HeaderTx = std::nullptr_t>
-    lhe make_lhe(const InitRaw &init_raw,
+    lhe read_lhe(const InitRaw &init_raw,
                  const EventRange &events_raw,
                  InitTx init_tx,
                  EventTx event_tx,
@@ -3133,7 +3168,7 @@ namespace REX
                 b.set_header_translator(std::move(header_tx));
             }
         }
-        return b.build(init_raw, events_raw, header_raw);
+        return b.read(init_raw, events_raw, header_raw);
     }
 
     struct ignore_header_t
@@ -3148,13 +3183,9 @@ namespace REX
     template <class RawInit, class RawEvent, class RawHeaderOpt>
     struct lheRaw
     {
-        static_assert(_is_optional_v<RawHeaderOpt>,
-                      "RawHeaderOpt must be a std::optional<...>");
-
         using init_type = RawInit;
         using event_type = RawEvent;
         using header_opt = RawHeaderOpt;
-        using header_type = typename header_opt::value_type;
 
         RawInit init;
         std::vector<RawEvent> events;
@@ -3164,55 +3195,57 @@ namespace REX
     // lheWriter: Takes user-supplied constructors and applies them to
     // the lhe object and returns an lheRaw container from it
     template <
-        class InitFn,                    // RawInit  (const initNode&)
-        class EventFn,                   // RawEvent (const event&)
-        class HeaderFn = ignore_header_t // std::optional<RawHeader> (const std::any&)
-        >
+        class InitRaw,
+        class EventRaw,
+        class HeaderRaw = std::monostate>
     class lheWriter
     {
     public:
-        using raw_init_t = std::decay_t<std::invoke_result_t<InitFn, const initNode &>>;
-        using raw_event_t = std::decay_t<std::invoke_result_t<EventFn, event &>>;
-        using raw_header_opt_t = std::decay_t<std::invoke_result_t<HeaderFn, const std::any &>>;
+        using InitTx = std::function<InitRaw(const initNode &)>;
+        using EventTx = std::function<EventRaw(event &)>;
+        using HeaderTx = std::function<HeaderRaw(const std::any &)>;
+        using result_t = lheRaw<InitRaw, EventRaw, HeaderRaw>;
 
-        static_assert(std::is_invocable_r<raw_init_t, InitFn, const initNode &>::value,
-                      "InitFn must be callable as RawInit(const initNode&).");
-        static_assert(std::is_invocable_r<raw_event_t, EventFn, event &>::value,
-                      "EventFn must be callable as RawEvent(event&).");
-        static_assert(std::is_invocable_r<raw_header_opt_t, HeaderFn, const std::any &>::value,
-                      "HeaderFn must be callable as std::optional<RawHeader>(const std::any&).");
+        lheWriter(InitTx init_tx, EventTx event_tx, HeaderTx header_tx = HeaderTx{})
+            : init_fn_(std::move(init_tx)), event_fn_(std::move(event_tx)), header_fn_(std::move(header_tx)) {}
 
-        static_assert(_is_optional_v<raw_header_opt_t>,
-                      "HeaderFn must return std::optional<Something>. "
-                      "If you don't care about the header, use the default ignore_header_t.");
+        lheWriter &set_init_translator(InitTx tx)
+        {
+            init_fn_ = std::move(tx);
+            return *this;
+        }
 
-        using result_t = lheRaw<raw_init_t, raw_event_t, raw_header_opt_t>;
+        lheWriter &set_event_translator(EventTx tx)
+        {
+            event_fn_ = std::move(tx);
+            return *this;
+        }
 
-        lheWriter(InitFn init_fn, EventFn event_fn, HeaderFn header_fn = HeaderFn{})
-            : init_fn_(std::move(init_fn)), event_fn_(std::move(event_fn)), header_fn_(std::move(header_fn)) {}
+        lheWriter &set_header_translator(HeaderTx tx)
+        {
+            header_fn_ = std::move(tx);
+            return *this;
+        }
 
         result_t to_raw(const lhe &doc) const
         {
             result_t out;
 
-            // Header (optional)
             if (doc.header.has_value())
             {
-                out.header = header_fn_(doc.header);
-            }
-            else
-            {
-                out.header = std::nullopt;
+                if (header_fn_)
+                    out.header = header_fn_(doc.header);
+                else
+                    warning("lheWriter::to_raw(): header present but no header translator configured; ignoring.");
             }
 
             out.init = init_fn_(static_cast<const initNode &>(doc));
 
             out.events.reserve(doc.events.size());
             for (const auto &pevt : doc.events)
-            {
                 if (pevt)
                     out.events.push_back(event_fn_(*pevt));
-            }
+
             return out;
         }
 
@@ -3225,16 +3258,32 @@ namespace REX
         }
 
     private:
-        InitFn init_fn_;
-        EventFn event_fn_;
-        HeaderFn header_fn_;
+        InitTx init_fn_;
+        EventTx event_fn_;
+        HeaderTx header_fn_;
     };
 
-    template <class IF, class EF>
-    lheWriter(IF, EF) -> lheWriter<IF, EF, ignore_header_t>;
+    template <class InitRaw,
+              class EventRange,
+              class EventRawT = typename std::decay<decltype(*std::begin(std::declval<EventRange>()))>::type,
+              class HeaderRaw = std::monostate,
+              class InitTx,
+              class EventTx,
+              class HeaderTx = std::nullptr_t>
+    lheRaw<InitRaw, EventRawT, HeaderRaw> write_lhe(lhe &doc,
+                                                    InitTx init_tx,
+                                                    EventTx event_tx,
+                                                    HeaderTx header_tx = nullptr)
+    {
+        // using EventRawT = typename std::decay<decltype(*std::begin(event_tx(doc.events[0])))>::type;
 
-    template <class IF, class EF, class HF>
-    lheWriter(IF, EF, HF) -> lheWriter<IF, EF, HF>;
+        lheWriter<InitRaw, EventRawT, HeaderRaw> w(std::move(init_tx), std::move(event_tx));
+        if constexpr (!std::is_same_v<HeaderTx, std::nullptr_t>)
+        {
+            w.set_header_translator(std::move(header_tx));
+        }
+        return w.to_raw(doc);
+    }
 
     std::shared_ptr<event> string_to_event(std::string_view content);
     std::shared_ptr<event> xml_to_event(std::shared_ptr<xmlNode> node);
@@ -3258,23 +3307,35 @@ namespace REX
     using EventToXmlFn = std::shared_ptr<xmlNode> (*)(event &);
     using HeaderToXmlFn = std::optional<std::shared_ptr<xmlNode>> (*)(const std::any &);
 
-    using xmlBuilder = lheReader<std::shared_ptr<xmlNode>,
-                                 std::shared_ptr<xmlNode>,
-                                 std::shared_ptr<xmlNode>>;
-    using xmlTranslator = lheWriter<InitToXmlFn, EventToXmlFn, HeaderToXmlFn>;
-    using xmlRaw = typename xmlTranslator::result_t;
+    using xmlReader = lheReader<std::shared_ptr<xmlNode>,
+                                std::shared_ptr<xmlNode>,
+                                std::shared_ptr<xmlNode>>;
+    using xmlWriter = lheWriter<
+        std::shared_ptr<xmlNode>,               // InitRaw
+        std::shared_ptr<xmlNode>,               // EventRaw
+        std::optional<std::shared_ptr<xmlNode>> // HeaderRaw (must be optional<...>)
+        >;
+
+    using xmlRaw = lheRaw<
+        std::shared_ptr<xmlNode>,               // RawInit
+        std::shared_ptr<xmlNode>,               // RawEvent
+        std::optional<std::shared_ptr<xmlNode>> // RawHeaderOpt
+        >;
 
     // Accessor to prebuilt XML instance
-    const xmlBuilder &xml_builder();
-    const xmlTranslator &xml_translator();
+    const xmlReader &xml_reader();
+    const xmlWriter &xml_writer();
 
     // Convenience wrapper: translate to the Raw structure
     xmlRaw to_xml_raw(const lhe &doc);
-
-    extern template class lheReader<std::shared_ptr<xmlNode>,
-                                    std::shared_ptr<xmlNode>,
-                                    std::shared_ptr<xmlNode>>;
-    extern template class lheWriter<InitToXmlFn, EventToXmlFn, HeaderToXmlFn>;
+    extern template class lheWriter<
+        std::shared_ptr<xmlNode>,
+        std::shared_ptr<xmlNode>,
+        std::optional<std::shared_ptr<xmlNode>>>;
+    template class lheWriter<
+        std::shared_ptr<xmlNode>,
+        std::shared_ptr<xmlNode>,
+        std::optional<std::shared_ptr<xmlNode>>>;
 
     lhe to_lhe(std::shared_ptr<xmlNode> node);
     lhe to_lhe(const std::string &xml);
