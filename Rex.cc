@@ -5733,7 +5733,8 @@ namespace REX
     {
         if (!node)
             return std::nullopt;
-        return std::any(node);
+        auto new_node = node->deep_copy();
+        return std::any(new_node);
     }
 
     std::shared_ptr<xmlNode> init_to_xml(const initNode &init)

@@ -835,7 +835,10 @@ namespace REX::tea
             {
                 rwgt->append_backlog();
             }
+#pragma optimize("", off)
             std::cout << ".";
+#pragma optimize("", on)
+            std::cout.flush();
         }
     }
 

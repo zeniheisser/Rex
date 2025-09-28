@@ -2374,6 +2374,8 @@ namespace REX
         const vecArr4<double> &p() const { return momenta_; }
         vecArr4<double> &momentum() { return momenta_; }
         const vecArr4<double> &momentum() const { return momenta_; }
+        vecArr4<double> &momenta() { return momenta_; }
+        const vecArr4<double> &momenta() const { return momenta_; }
         std::vector<double> &mUP() { return mass_; }
         const std::vector<double> &mUP() const { return mass_; }
         std::vector<double> &m() { return mass_; }
