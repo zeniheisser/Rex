@@ -1,11 +1,11 @@
 # Rex and teaRex
 
-**R**apid **e**vent e**x**traction Version 0.9.9
+**R**apid **e**vent e**x**traction Version 1.0.0
 
 Rex is a C++ library for parsing and manipulating Les Houches Event-format (LHE) files. It is designed to fast and lightweight, in comparison to internal parsers in programs like MadGraph.
 Currently, Rex is in development and may not contain all features necessary for full LHE parsing.
 
-**t**ensorial **e**vent **a**daption with **Rex** Version 0.9.9
+**t**ensorial **e**vent **a**daption with **Rex** Version 1.0.0
 
 teaRex is an extension to the Rex library for the generic reweighting of parton-level events. It provides a flexible framework for applying weight modifications to events based on user-defined criteria, using the underlying Rex formats to sort, extract, and rewrite event-level information, and extending it to allow for generic reweighting using any information stored in an LHE file as input for a user-provided reweighting function acting on REX::process objects, which are SoA (Structure of Arrays) objects for storing event information. Users can either provide the REX::process objects themselves, or use the flexible Rex sorting architecture to extract the necessary information from an LHE file.
 
@@ -41,8 +41,8 @@ After installation, compile your program using Rex and teaRex as
 ```
 c++ ... -I /PATH/TO/LIBRARY/include -L /PATH/TO/LIBRARY/lib -lrex -ltearex
 ```
-and your program can now be run as
+noting that when using teaRex, your binary must be compiled with multithreading support e.g. for ```g++``` by using the compilation flag ```-pthread```. Your program can now be run as
 ```
 LD_LIBRARY_PATH=/PATH/TO/LIBRARY/lib:$LD_LIBRARY_PATH ./your_binary
 ```
-and your binary should now run using Rex without any issues.
+and your binary should run using Rex without any issues.
