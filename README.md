@@ -12,7 +12,9 @@ teaRex is an extension to the Rex library for the generic reweighting of parton-
 
 
 Copyright © 2023-2025 CERN, CERN Author Zenny Wettersten.
+
 Licensed under the GNU Lesser General Public License (version 3 or later).
+
 All rights not expressly granted are reserved.
 
 
@@ -38,7 +40,6 @@ sudo ldconfig
 After installation, compile your program using Rex and teaRex as
 ```
 c++ ... -I /PATH/TO/LIBRARY/include -L /PATH/TO/LIBRARY/lib -lrex -ltearex
-
 ```
 and your program can now be run as
 ```
