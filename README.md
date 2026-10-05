@@ -1,17 +1,17 @@
 # Rex and teaRex
 
-**R**apid **e**vent e**x**traction Version 1.0.0
+**R**apid **e**vent e**x**traction Version 1.1.0
 
-Rex is a C++ library for parsing and manipulating Les Houches Event-format (LHE) files. It is designed to fast and lightweight, in comparison to internal parsers in programs like MadGraph.
-Currently, Rex is in development and may not contain all features necessary for full LHE parsing.
+Rex is a C++ library for parsing and manipulating Les Houches Event-format (LHE) files. It is designed to fast and lightweight, and generic, allowing usage as an LHE parser and parton-level event manipulator for whatever purpose the user desires. Rex functionality is generalised through std::function-based interfaces which can be generated from customisable constructors for full generality and flexibility, while still providing a simple interface for typical use cases.
 
-**t**ensorial **e**vent **a**daption with **Rex** Version 1.0.0
+**t**ensorial **e**vent **a**daption with **Rex** Version 1.1.0
 
 teaRex is an extension to the Rex library for the generic reweighting of parton-level events. It provides a flexible framework for applying weight modifications to events based on user-defined criteria, using the underlying Rex formats to sort, extract, and rewrite event-level information, and extending it to allow for generic reweighting using any information stored in an LHE file as input for a user-provided reweighting function acting on REX::process objects, which are SoA (Structure of Arrays) objects for storing event information. Users can either provide the REX::process objects themselves, or use the flexible Rex sorting architecture to extract the necessary information from an LHE file.
 
 
 
 Copyright © 2023-2025 CERN, CERN Author Zenny Wettersten.
+Copyright © 2025-2026 Zenny Wettersten.
 
 Licensed under the GNU Lesser General Public License (version 3 or later).
 
@@ -46,3 +46,5 @@ noting that when using teaRex, your binary must be compiled with multithreading 
 LD_LIBRARY_PATH=/PATH/TO/LIBRARY/lib:$LD_LIBRARY_PATH ./your_binary
 ```
 and your binary should run using Rex without any issues.
+
+Alternatively, Rex and teaRex can be installed through CMake using the standard ```cmake``` command; using CMake, the Python bindings provided through pyrex can also be installed by setting ```DREX_BUILD_PYTHON=ON```.
