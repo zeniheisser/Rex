@@ -8,7 +8,7 @@
  *
  ***/
 //
-// *t*ensorial *e*vent *a*daption with *R*e*x* Version 1.0.0
+// *t*ensorial *e*vent *a*daption with *R*e*x* Version 1.1.0
 // teaRex is an extension to the Rex library for the generic reweighting of parton-level events.
 // It provides a flexible framework for applying weight modifications to events based on user-defined criteria,
 // using the underlying Rex formats to sort, extract, and rewrite event-level information,
@@ -18,6 +18,7 @@
 // or use the flexible Rex sorting architecture to extract the necessary information from an LHE file.
 //
 // Copyright © 2023-2025 CERN, CERN Author Zenny Wettersten.
+// Copyright © 2025-2026 Zenny Wettersten.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // All rights not expressly granted are reserved.
 //
@@ -33,6 +34,24 @@ namespace REX::tea
     bool true_function()
     {
         return true;
+    }
+
+    event_bool_fn helicity_selector(int helicity)
+    {
+        return [helicity](REX::event &e) -> bool
+        { return helicity < 0 || e.helicity_ == helicity; };
+    }
+
+    event_bool_fn flavor_selector(int flavor)
+    {
+        return [flavor](REX::event &e) -> bool
+        { return flavor < 0 || e.flavor_ == flavor; };
+    }
+
+    event_bool_fn helicity_flavor_selector(int helicity, int flavor)
+    {
+        return [helicity, flavor](REX::event &e) -> bool
+        { return (helicity < 0 || e.helicity_ == helicity) && (flavor < 0 || e.flavor_ == flavor); };
     }
 
     void rwgt_slha::rwgt_card::add_param(const std::string &block_name, std::pair<int, double> param)
@@ -339,50 +358,156 @@ namespace REX::tea
         return cancel_.load(std::memory_order_relaxed);
     }
 
+    procReweightor::rwgt_slot procReweightor::wrap(weightor w)
+    {
+        if (!w)
+            return {};
+        return {[w](process &p) -> weight_puller
+                {
+                    auto result = w(p);
+                    return [result]()
+                    { return result; };
+                },
+                true};
+    }
+
+    procReweightor::rwgt_slot procReweightor::wrap(deferred_weightor w)
+    {
+        if (!w)
+            return {};
+        return {w, false};
+    }
+
     procReweightor::procReweightor(weightor reweight_function)
     {
-        this->reweight_functions.push_back(reweight_function);
+        this->reweight_functions.push_back(wrap(reweight_function));
     }
 
     procReweightor::procReweightor(weightor reweight_function, eventBelongs selector)
     {
-        this->reweight_functions.push_back(reweight_function);
+        this->reweight_functions.push_back(wrap(reweight_function));
         this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
         this->event_checker_fn = this->event_checker->get_event_bool();
     }
 
     procReweightor::procReweightor(weightor reweight_function, std::shared_ptr<eventBelongs> selector)
     {
-        this->reweight_functions.push_back(reweight_function);
+        this->reweight_functions.push_back(wrap(reweight_function));
         this->event_checker = selector;
         this->event_checker_fn = selector->get_event_bool();
     }
 
     procReweightor::procReweightor(std::vector<weightor> rwgts)
     {
-        this->reweight_functions = rwgts;
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
     }
 
     procReweightor::procReweightor(std::vector<weightor> rwgts, std::shared_ptr<eventBelongs> selector)
     {
-        this->reweight_functions = rwgts;
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
         this->event_checker = selector;
         this->event_checker_fn = selector->get_event_bool();
     }
 
+    procReweightor::procReweightor(std::vector<weightor> rwgts, std::shared_ptr<eventBelongs> selector, weightor normaliser)
+    {
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+        this->event_checker = selector;
+        this->event_checker_fn = selector->get_event_bool();
+        this->normaliser = normaliser;
+    }
+
     procReweightor::procReweightor(std::vector<weightor> rwgts, eventBelongs selector)
     {
-        this->reweight_functions = rwgts;
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
         this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
         this->event_checker_fn = this->event_checker->get_event_bool();
     }
 
     procReweightor::procReweightor(std::vector<weightor> rwgts, eventBelongs selector, weightor normaliser)
     {
-        this->reweight_functions = rwgts;
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
         this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
         this->event_checker_fn = this->event_checker->get_event_bool();
         this->normaliser = normaliser;
+    }
+
+    procReweightor::procReweightor(deferred_weightor reweight_function)
+    {
+        this->reweight_functions.push_back(wrap(reweight_function));
+    }
+
+    procReweightor::procReweightor(deferred_weightor reweight_function, eventBelongs selector)
+    {
+        this->reweight_functions.push_back(wrap(reweight_function));
+        this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
+        this->event_checker_fn = this->event_checker->get_event_bool();
+    }
+
+    procReweightor::procReweightor(deferred_weightor reweight_function, std::shared_ptr<eventBelongs> selector)
+    {
+        this->reweight_functions.push_back(wrap(reweight_function));
+        this->event_checker = selector;
+        this->event_checker_fn = selector->get_event_bool();
+    }
+
+    procReweightor::procReweightor(std::vector<deferred_weightor> rwgts)
+    {
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+    }
+
+    procReweightor::procReweightor(std::vector<deferred_weightor> rwgts, std::shared_ptr<eventBelongs> selector)
+    {
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+        this->event_checker = selector;
+        this->event_checker_fn = selector->get_event_bool();
+    }
+
+    procReweightor::procReweightor(std::vector<deferred_weightor> rwgts, std::shared_ptr<eventBelongs> selector, weightor normaliser)
+    {
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+        this->event_checker = selector;
+        this->event_checker_fn = selector->get_event_bool();
+        this->normaliser = normaliser;
+    }
+
+    procReweightor::procReweightor(std::vector<deferred_weightor> rwgts, eventBelongs selector)
+    {
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+        this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
+        this->event_checker_fn = this->event_checker->get_event_bool();
+    }
+
+    procReweightor::procReweightor(std::vector<deferred_weightor> rwgts, eventBelongs selector, weightor normaliser)
+    {
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+        this->event_checker = std::make_shared<eventBelongs>(std::move(selector));
+        this->event_checker_fn = this->event_checker->get_event_bool();
+        this->normaliser = normaliser;
+    }
+
+    procReweightor &procReweightor::calc_normalisation(std::vector<double> wgts)
+    {
+        if (!this->proc)
+            throw std::runtime_error("procReweightor::calc_normalisation: process not set before calculating normalisation");
+        if (wgts.size() != this->proc->weight_.size())
+            throw std::runtime_error("procReweightor::calc_normalisation: weights vector size does not match number of original weights in process");
+        this->normalisation = wgts;
+        std::transform(this->normalisation.begin(), this->normalisation.end(), this->normalisation.begin(),
+                       [](double val)
+                       { return (val == 0.0) ? 0.0 : 1.0 / val; });
+        this->normalisation = *REX::vec_elem_mult<double>(this->normalisation, this->proc->weight_);
+        return *this;
     }
 
     procReweightor &procReweightor::set_event_checker(eventBelongs checker)
@@ -405,9 +530,20 @@ namespace REX::tea
         return *this;
     }
 
+    procReweightor &procReweightor::set_normalisation(std::vector<double> normalisation)
+    {
+        if (!this->proc)
+            throw std::runtime_error("procReweightor::set_normalisation: process not set before setting normalisation");
+        if(normalisation.size() != this->proc->weight_.size() && this->proc->weight_.size() > 0)
+            throw std::runtime_error("procReweightor::set_normalisation: normalisation vector size does not match number of original weights in process");
+        this->normalisation = normalisation;
+        this->explicitly_set_norm = true;
+        return *this;
+    }
+
     procReweightor &procReweightor::set_reweight_functions(weightor rwgt)
     {
-        this->reweight_functions = {rwgt};
+        this->reweight_functions = {wrap(rwgt)};
         if (!this->normaliser)
             this->normaliser = rwgt;
         return *this;
@@ -415,13 +551,37 @@ namespace REX::tea
 
     procReweightor &procReweightor::set_reweight_functions(std::vector<weightor> rwgts)
     {
-        this->reweight_functions = rwgts;
+        this->reweight_functions.clear();
+        this->reweight_functions.reserve(rwgts.size());
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
         return *this;
     }
 
     procReweightor &procReweightor::add_reweight_function(weightor rwgt)
     {
-        this->reweight_functions.push_back(rwgt);
+        this->reweight_functions.push_back(wrap(rwgt));
+        return *this;
+    }
+
+    procReweightor &procReweightor::set_deferred_reweight_functions(deferred_weightor rwgt)
+    {
+        this->reweight_functions = {wrap(rwgt)};
+        return *this;
+    }
+
+    procReweightor &procReweightor::set_deferred_reweight_functions(std::vector<deferred_weightor> rwgts)
+    {
+        this->reweight_functions.clear();
+        this->reweight_functions.reserve(rwgts.size());
+        for (auto &w : rwgts)
+            this->reweight_functions.push_back(wrap(w));
+        return *this;
+    }
+
+    procReweightor &procReweightor::add_deferred_reweight_function(deferred_weightor rwgt)
+    {
+        this->reweight_functions.push_back(wrap(rwgt));
         return *this;
     }
 
@@ -431,33 +591,58 @@ namespace REX::tea
         return *this;
     }
 
+    procReweightor &procReweightor::set_initial_weights(std::vector<double> weights)
+    {
+        this->explicitly_set_norm = true;
+        return this->calc_normalisation(weights);
+    }
+
     // Member functions for handling reweighting
     void procReweightor::initialise()
     {
         if (!this->proc)
             throw std::runtime_error("procReweightor::initialise: process not set before initialisation");
+        if (this->explicitly_set_norm) return; // If normalisation is explicitly set, skip the rest of the initialisation
         if (!this->normaliser)
         {
-            if (this->reweight_functions.empty())
+            // reweight_functions may hold a mix of immediate and genuinely
+            // deferred slots -- scan for the first immediate one, since
+            // only its result is guaranteed to already exist right now.
+            size_t first_immediate = this->reweight_functions.size();
+            size_t immediate_count = 0;
+            bool any_slot = false;
+            for (size_t i = 0; i < this->reweight_functions.size(); ++i)
             {
-                warning("procReweightor::initialise: no reweight functions set, process will only yield zero weights.");
-                this->normalisation = std::vector<double>(this->proc->weight_.size(), 0.0);
-                return;
+                if (!this->reweight_functions[i])
+                    continue;
+                any_slot = true;
+                if (!this->reweight_functions[i].immediate)
+                    continue;
+                if (first_immediate == this->reweight_functions.size())
+                    first_immediate = i;
+                ++immediate_count;
             }
-            if (this->reweight_functions.size() != 1)
-                warning("procReweightor::initialise: multiple reweight functions set, assuming first is default evaluator and using it for normalisation.");
-            this->normaliser = this->reweight_functions[0];
+            if (first_immediate == this->reweight_functions.size())
+            {
+                if (!any_slot)
+                {
+                    this->verbose.warn("procReweightor::initialise: no reweight functions set, process will only yield zero weights.");
+                    this->normalisation = std::vector<double>(this->proc->weight_.size(), 0.0);
+                    return;
+                }
+                throw std::runtime_error(
+                    "procReweightor::initialise: only deferred reweight functions "
+                    "are registered and no normaliser was set; call "
+                    "set_normaliser() explicitly");
+            }
+            if (immediate_count != 1)
+                this->verbose.warn("procReweightor::initialise: multiple reweight functions set, assuming first is default evaluator and using it for normalisation.");
+            auto slot = this->reweight_functions[first_immediate];
+            this->normaliser = [slot](process &p)
+            { return slot.fn(p)(); };
         }
         auto normalised = this->normaliser(*this->proc);
-        if (!normalised)
-            throw std::runtime_error("procReweightor::initialise: normaliser function returned null pointer");
-        if (normalised->size() != this->proc->weight_.size())
-            throw std::runtime_error("procReweightor::initialise: normalisation vector size does not match number of original weights in process");
-        this->normalisation = *normalised;
-        std::transform(this->normalisation.begin(), this->normalisation.end(), this->normalisation.begin(),
-                       [](double val)
-                       { return (val == 0.0) ? 0.0 : 1.0 / val; });
-        this->normalisation = *REX::vec_elem_mult<double>(this->normalisation, this->proc->weight_);
+        this->calc_normalisation(*normalised);
     }
 
     void procReweightor::initialise(std::shared_ptr<process> p)
@@ -475,21 +660,25 @@ namespace REX::tea
     {
         if (!this->proc)
             throw std::runtime_error("procReweightor::evaluate: process not set before evaluation");
-        if (this->reweight_functions.size() <= amp)
+        if (amp >= this->reweight_functions.size() || !this->reweight_functions[amp])
             return this->append_zero_weights();
         if (this->normalisation.empty())
             this->initialise();
-        auto newweights = this->reweight_functions[amp](*this->proc);
-        if (!newweights)
-            throw std::runtime_error("procReweightor::evaluate: reweight function returned null pointer");
-        this->backlog.push_back(std::move(*newweights));
+        auto &slot = this->reweight_functions[amp];
+        auto puller = slot.fn(*this->proc);
+        if (!puller)
+            throw std::runtime_error("procReweightor::evaluate: reweight function returned an empty puller");
+        this->backlog.push_back({std::move(puller), slot.immediate});
     }
 
     void procReweightor::append_zero_weights()
     {
         if (!this->proc)
             throw std::runtime_error("procReweightor::append_zero_weights: process not set before appending zero weights");
-        this->backlog.push_back(std::vector<double>(this->proc->weight_.size(), 0.0));
+        auto zeros = std::make_shared<std::vector<double>>(this->proc->weight_.size(), 0.0);
+        this->backlog.push_back({[zeros]()
+                                  { return zeros; },
+                                  true});
     }
 
     void procReweightor::append_backlog()
@@ -497,14 +686,155 @@ namespace REX::tea
         if (this->normalisation.empty())
             throw std::runtime_error("procReweightor::append_backlog: normalisation is empty; call initialise() first");
 
-        for (auto &weights : this->backlog)
+        std::vector<backlog_entry> remaining;
+        remaining.reserve(this->backlog.size());
+        for (auto &entry : this->backlog)
         {
-            if (weights.size() != this->normalisation.size())
+            if (!entry.immediate)
+            {
+                remaining.push_back(std::move(entry));
+                continue;
+            }
+            auto weights = entry.pull();
+            if (!weights)
+                throw std::runtime_error("procReweightor::append_backlog: reweight function returned null pointer");
+            if (weights->size() != this->normalisation.size())
                 throw std::runtime_error("procReweightor::append_backlog: size mismatch between weights and normalisation");
 
-            this->proc->append_wgts(*REX::vec_elem_mult<double>(weights, this->normalisation));
+            this->proc->append_wgts(*REX::vec_elem_mult<double>(*weights, this->normalisation));
+        }
+        this->backlog = std::move(remaining);
+
+        // One outer reweighting iteration just finished (this is called
+        // exactly once per iteration, from reweightor::run_all_iterations()/
+        // run_streaming()); once max_deferred_iterations of them have gone
+        // by without a flush, pull and clear whatever deferred results are
+        // still pending -- see max_deferred_iterations' own doc comment
+        ++this->deferred_iterations_since_flush;
+        if (this->max_deferred_iterations != npos &&
+            this->deferred_iterations_since_flush >= this->max_deferred_iterations)
+        {
+            this->pull_deferred_backlog();
+        }
+    }
+
+    void procReweightor::pull_deferred_backlog()
+    {
+        this->deferred_iterations_since_flush = 0;
+        if (this->backlog.empty())
+            return;
+        if (this->normalisation.empty())
+            throw std::runtime_error("procReweightor::pull_deferred_backlog: normalisation is empty; call initialise() first");
+
+        // append_backlog() flushes every immediate entry each iteration, so
+        // whatever remains here, whether this runs mid-run (because
+        // max_deferred_iterations fired) or once at the very end, must be a
+        // genuinely deferred entry
+        for (auto &entry : this->backlog)
+        {
+            auto weights = entry.pull();
+            if (!weights)
+                throw std::runtime_error("procReweightor::pull_deferred_backlog: weight puller returned null pointer");
+            if (weights->size() != this->normalisation.size())
+                throw std::runtime_error("procReweightor::pull_deferred_backlog: size mismatch between pulled weights and normalisation");
+
+            this->proc->append_wgts(*REX::vec_elem_mult<double>(*weights, this->normalisation));
         }
         this->backlog.clear();
+    }
+
+    void xSecAccumulator::absorb(const std::vector<std::shared_ptr<REX::event>> &events)
+    {
+        for (auto &ev : events)
+        {
+            if (!ev)
+                continue;
+            ++this->n_events;
+            this->weight_sum += ev->weight_;
+            this->weight_sumSq += ev->weight_ * ev->weight_;
+            if (this->wgt_sum.size() < ev->wgts_.size())
+            {
+                this->wgt_sum.resize(ev->wgts_.size(), 0.0);
+                this->ratio_sum.resize(ev->wgts_.size(), 0.0);
+                this->ratio_sumSq.resize(ev->wgts_.size(), 0.0);
+            }
+            for (size_t k = 0; k < ev->wgts_.size(); ++k)
+            {
+                this->wgt_sum[k] += ev->wgts_[k];
+                double ratio = (ev->weight_ != 0.0) ? ev->wgts_[k] / ev->weight_ : 0.0;
+                this->ratio_sum[k] += ratio;
+                this->ratio_sumSq[k] += ratio * ratio;
+            }
+        }
+    }
+
+    void xSecAccumulator::finalise_into(reweightor &r) const
+    {
+        if (this->n_events == 0)
+            throw std::runtime_error("xSecAccumulator::finalise_into: no events were streamed, cannot calculate cross sections");
+
+        // Mirrors reweightor::calc_xSec_from_weights(): only estimate
+        // xSec_/xSecErr_ from event weights if no header cross section (eg a
+        // real <init> block) is already available
+        if (std::accumulate(r.xSec_.begin(), r.xSec_.end(), 0.0) == 0.0)
+        {
+            double mean = this->weight_sum / double(this->n_events);
+            double variance = std::max(this->weight_sumSq / double(this->n_events) - std::pow(mean, 2), 0.0);
+            r.xSec_ = {mean};
+            r.xSecErr_ = {std::sqrt(variance / double(this->n_events))};
+        }
+
+        // Mirrors reweightor::calc_norm()
+        r.norm_factor = 1.0;
+        if (std::abs(r.idWgt_) == 3)
+        {
+            r.norm_factor = std::accumulate(r.xSec_.begin(), r.xSec_.end(), 0.0) / double(this->n_events);
+        }
+        else if (std::abs(r.idWgt_) == 4)
+        {
+            r.norm_factor = 1.0 / double(this->n_events);
+        }
+        else
+        {
+            if (std::abs(r.idWgt_) > 2 || r.idWgt_ == 0)
+                r.verbose.warn("reweightor::run_streaming: idWgt is not set to a value defined in the LHE standard. Assuming weighted events.");
+            double total_xSec = std::accumulate(r.xSec_.begin(), r.xSec_.end(), 0.0);
+            if (this->weight_sum == 0.0)
+                throw std::runtime_error("xSecAccumulator::finalise_into: total weight is zero, cannot calculate norm");
+            r.norm_factor = total_xSec / this->weight_sum;
+        }
+
+        // Mirrors reweightor::calc_xSecs()
+        r.rwgt_xSec = this->wgt_sum;
+        for (auto &x : r.rwgt_xSec)
+            x *= r.norm_factor;
+
+        // Mirrors reweightor::calc_xErrs()
+        double loc_xSec = std::accumulate(r.xSec_.begin(), r.xSec_.end(), 0.0);
+        double loc_xErr = std::sqrt(std::accumulate(r.xSecErr_.begin(), r.xSecErr_.end(), 0.0, [](double a, double b)
+                                                     { return a + b * b; }));
+        double invNoEvs = 1.0 / double(this->n_events);
+        double sqrtInvNoEvs = std::sqrt(invNoEvs);
+        r.rwgt_xErr.assign(r.rwgt_xSec.size(), 0.0);
+        for (size_t k = 0; k < r.rwgt_xSec.size(); ++k)
+        {
+            double variance = (this->ratio_sumSq[k] - std::pow(this->ratio_sum[k], 2) * invNoEvs) * invNoEvs;
+            variance = std::max(variance, 0.0);
+            r.rwgt_xErr[k] = loc_xSec * std::sqrt(variance) * sqrtInvNoEvs + loc_xErr * this->ratio_sum[k] * invNoEvs;
+            if (std::isnan(r.rwgt_xErr[k]) || std::isinf(r.rwgt_xErr[k]) || r.rwgt_xErr[k] <= 0.0)
+            {
+                if (loc_xSec <= 0.0 || r.rwgt_xSec[k] == 0.0)
+                {
+                    r.verbose.warn("reweightor::run_streaming: Error propagation failed for weight " + std::to_string(k) + " and no baseline cross section is available to approximate it from; setting the error to 0.", true);
+                    r.rwgt_xErr[k] = 0.0;
+                }
+                else
+                {
+                    r.verbose.warn("reweightor::run_streaming: Error propagation failed for weight " + std::to_string(k) + ". Approximating the error at the level of the cross section.");
+                    r.rwgt_xErr[k] = loc_xErr * std::max(loc_xSec / r.rwgt_xSec[k], r.rwgt_xSec[k] / loc_xSec);
+                }
+            }
+        }
     }
 
     reweightor::reweightor(lhe &&mother) : lhe(std::move(mother)) {}
@@ -615,10 +945,32 @@ namespace REX::tea
         return *this;
     }
 
+    void reweightor::calc_xSec_from_weights()
+    {
+        if (std::accumulate(this->xSec_.begin(), this->xSec_.end(), 0.0) != 0.0)
+            return; // a header cross section (e.g. from a real <init> block) is already available
+        if (this->events.empty())
+            this->transpose();
+        if (this->events.empty())
+            throw std::runtime_error("reweightor::calc_xSec_from_weights: no events found, cannot estimate a cross section");
+        double sum = 0.0, sumSq = 0.0;
+        for (auto ev : this->events)
+        {
+            sum += ev->weight_;
+            sumSq += std::pow(ev->weight_, 2);
+        }
+        double nEvs = double(this->events.size());
+        double mean = sum / nEvs;
+        double variance = std::max(sumSq / nEvs - std::pow(mean, 2), 0.0);
+        this->xSec_ = {mean};
+        this->xSecErr_ = {std::sqrt(variance / nEvs)};
+    }
+
     void reweightor::calc_norm()
     {
         if (this->events.empty())
             throw std::runtime_error("reweightor::calc_norm: no events loaded, cannot calculate norm");
+        this->calc_xSec_from_weights();
         this->norm_factor = 1.0;
         if (std::abs(this->idWgt_) == 3)
         {
@@ -632,7 +984,7 @@ namespace REX::tea
         else
         {
             if (std::abs(this->idWgt_) > 2 || this->idWgt_ == 0)
-                warning("reweightor::calc_norm: idWgt is not set to a value defined in the LHE standard. Assuming weighted events.");
+                this->verbose.warn("reweightor::calc_norm: idWgt is not set to a value defined in the LHE standard. Assuming weighted events.");
             this->norm_factor = std::accumulate(this->xSec_.begin(), this->xSec_.end(), 0.0);
             double accumulated_wgts = 0.0;
             for (const auto &proc : this->processes)
@@ -694,40 +1046,75 @@ namespace REX::tea
         this->sorted_events.clear();
         this->processes.clear();
         this->sort_events();
-        this->events_to_processes();
+        this->events_to_processes(); // also (re)populates process_group, 1:1 with processes
 
         const size_t R = this->reweightors.size();
-        const size_t B = this->processes.size();
-        const bool has_unsorted = (B == R + 1);
-        auto processes_full = this->processes;
+        if (this->processes.size() != this->process_group.size())
+            throw std::runtime_error("reweightor::extract_sorter: processes/process_group size mismatch.");
 
-        std::vector<size_t> keep;
-        keep.reserve(R);
-        for (size_t i = 0; i < R; ++i)
-            if (!processes_full[i]->events.empty())
-                keep.push_back(i);
+        auto processes_full = std::move(this->processes);
+        auto groups_full = std::move(this->process_group);
+        auto base_reweightors = std::move(this->reweightors);
+
+        // Tracks, per registered procReweightor (ie per sorter class), whether its
+        // first batch has already been assigned. That first batch reuses the
+        // original procReweightor object; any further max_batch overflow batches
+        // of the same class each get a fresh clone of it -- identical reweight
+        // functions, normaliser and event checker, bound (via set_process below)
+        // to their own process/event subsample -- mirroring lhe::process_group's
+        // "additional index per overflow batch" on the reweightor side
+        std::vector<bool> group_claimed(R, false);
 
         std::vector<std::shared_ptr<process>> procs;
         std::vector<std::shared_ptr<procReweightor>> rwgs;
-        procs.reserve(keep.size() + (has_unsorted ? 1u : 0u));
-        rwgs.reserve(keep.size() + (has_unsorted ? 1u : 0u));
+        std::vector<size_t> groups_kept;
+        procs.reserve(processes_full.size());
+        rwgs.reserve(processes_full.size());
+        groups_kept.reserve(processes_full.size());
 
-        for (size_t i : keep)
+        for (size_t i = 0; i < processes_full.size(); ++i)
         {
+            if (processes_full[i]->events.empty())
+                continue;
+
+            size_t group = groups_full[i];
+            std::shared_ptr<procReweightor> rw;
+            if (group == npos)
+            {
+                // Catch-all "matched no registered procReweightor" bucket: every
+                // batch of it gets its own independent, unconfigured
+                // procReweightor (which yields zero weights, same as before)
+                rw = std::make_shared<procReweightor>();
+            }
+            else
+            {
+                if (group >= R)
+                    throw std::runtime_error("reweightor::extract_sorter: process_group index out of range.");
+                if (!group_claimed[group])
+                {
+                    rw = base_reweightors[group];
+                    group_claimed[group] = true;
+                }
+                else
+                {
+                    rw = std::make_shared<procReweightor>(*base_reweightors[group]);
+                    // Clone only the config; runtime state (proc/normalisation/
+                    // backlog) belongs to the batch it will be bound to below,
+                    // not whatever the base procReweightor may have accumulated
+                    rw->proc = nullptr;
+                    rw->normalisation.clear();
+                    rw->backlog.clear();
+                }
+            }
+
             procs.push_back(processes_full[i]);
-            rwgs.push_back(this->reweightors[i]);
-        }
-
-        if (has_unsorted && !processes_full.back()->events.empty())
-        {
-            procs.push_back(processes_full.back());
-
-            auto dummy = std::make_shared<procReweightor>();
-            rwgs.push_back(std::move(dummy));
+            rwgs.push_back(std::move(rw));
+            groups_kept.push_back(group);
         }
 
         this->processes = std::move(procs);
         this->reweightors = std::move(rwgs);
+        this->process_group = std::move(groups_kept);
 
         if (this->processes.size() != this->reweightors.size())
             throw std::runtime_error("reweightor::extract_sorter: number of processes does not match number of reweightors.");
@@ -737,6 +1124,89 @@ namespace REX::tea
             auto &p = this->processes[i];
             p->validate();
             this->reweightors[i]->set_process(p);
+            // Mute this batch's procReweightor whenever this reweightor is
+            // muted, without touching its own default (a procReweightor
+            // used standalone, outside of any reweightor, stays verbose)
+            this->reweightors[i]->verbose.link(this->verbose);
+        }
+    }
+
+    void reweightor::extract_sorter_stream(const std::vector<std::shared_ptr<procReweightor>> &base)
+    {
+        if (base.empty())
+            throw std::runtime_error("reweightor::extract_sorter_stream: no procReweightors registered");
+
+        std::vector<event_bool_fn> preds;
+        preds.reserve(base.size());
+        for (const auto &rw : base)
+        {
+            if (rw->event_checker_fn)
+                preds.push_back(rw->event_checker_fn);
+            else
+                preds.push_back(rw->event_checker->get_event_bool());
+        }
+
+        this->set_sorter(eventSorter(std::move(preds)));
+        this->sorted_events.clear();
+        this->processes.clear();
+        this->sort_events();
+        this->events_to_processes(); // also (re)populates process_group, 1:1 with processes
+
+        const size_t R = base.size();
+        if (this->processes.size() != this->process_group.size())
+            throw std::runtime_error("reweightor::extract_sorter_stream: processes/process_group size mismatch.");
+
+        std::vector<std::shared_ptr<process>> procs;
+        std::vector<std::shared_ptr<procReweightor>> rwgs;
+        std::vector<size_t> groups_kept;
+        procs.reserve(this->processes.size());
+        rwgs.reserve(this->processes.size());
+        groups_kept.reserve(this->processes.size());
+
+        for (size_t i = 0; i < this->processes.size(); ++i)
+        {
+            if (this->processes[i]->events.empty())
+                continue;
+
+            size_t group = this->process_group[i];
+            std::shared_ptr<procReweightor> rw;
+            if (group == npos)
+            {
+                // Catch-all "matched no registered procReweightor" bucket
+                rw = std::make_shared<procReweightor>();
+            }
+            else
+            {
+                if (group >= R)
+                    throw std::runtime_error("reweightor::extract_sorter_stream: process_group index out of range.");
+                // Unlike extract_sorter(), always clone: `base` must stay an
+                // untouched, reusable template across every batch, so no
+                // batch's runtime state (proc/normalisation/backlog) is ever
+                // written into it
+                rw = std::make_shared<procReweightor>(*base[group]);
+                rw->proc = nullptr;
+                rw->normalisation.clear();
+                rw->backlog.clear();
+            }
+
+            procs.push_back(this->processes[i]);
+            rwgs.push_back(std::move(rw));
+            groups_kept.push_back(group);
+        }
+
+        this->processes = std::move(procs);
+        this->reweightors = std::move(rwgs);
+        this->process_group = std::move(groups_kept);
+
+        if (this->processes.size() != this->reweightors.size())
+            throw std::runtime_error("reweightor::extract_sorter_stream: number of processes does not match number of reweightors.");
+
+        for (size_t i = 0; i < this->reweightors.size(); ++i)
+        {
+            auto &p = this->processes[i];
+            p->validate();
+            this->reweightors[i]->set_process(p);
+            this->reweightors[i]->verbose.link(this->verbose);
         }
     }
 
@@ -751,13 +1221,20 @@ namespace REX::tea
 
     void reweightor::finalise_reweighting()
     {
+        // Materializes every genuinely-deferred result accumulated across
+        // the whole iteration loop, one pull per procReweightor rather than
+        // one per iteration
+        for (auto &rwgt : this->reweightors)
+        {
+            rwgt->pull_deferred_backlog();
+        }
         for (auto proc : this->processes)
         {
             proc->transpose_wgts();
             proc->validate();
         }
         if (!this->finalise())
-            warning("reweightor::finalise_reweighting: finalise iterator returned false, something might have gone wrong. Validate output manually.");
+            this->verbose.warn("reweightor::finalise_reweighting: finalise iterator returned false, something might have gone wrong. Validate output manually.");
         if (this->launch_names.size() > 0)
         {
             this->extract_weight_ids();
@@ -772,23 +1249,22 @@ namespace REX::tea
         this->calc_xErrs();
     }
 
+    void reweightor::sync_n_amps()
+    {
+        this->n_amps = 0;
+        for (auto &rwgt : this->reweightors)
+            this->n_amps = std::max(this->n_amps, rwgt->reweight_functions.size());
+        if (this->n_amps == 0)
+            throw std::runtime_error("reweightor::sync_n_amps: no reweight functions found, something went wrong.");
+    }
+
     void reweightor::setup()
     {
         if (!this->initialise())
             throw std::runtime_error("reweightor::setup: initialise iterator returned false, something went wrong.");
         this->extract_sorter();
         this->initialise_reweightors();
-        this->n_amps = 0;
-        for (auto &rwgt : this->reweightors)
-        {
-            size_t amps = rwgt->reweight_functions.size();
-            this->n_amps = std::max(this->n_amps, amps);
-        }
-
-        if (this->n_amps == 0)
-        {
-            throw std::runtime_error("reweightor::setup: no reweight functions found, something went wrong.");
-        }
+        this->sync_n_amps();
         this->setup_pool();
     }
 
@@ -836,7 +1312,7 @@ namespace REX::tea
                 rwgt->append_backlog();
             }
 #pragma optimize("", off)
-            std::cout << ".";
+            this->verbose.print(".");
 #pragma optimize("", on)
             std::cout.flush();
         }
@@ -847,6 +1323,83 @@ namespace REX::tea
         this->setup();
         this->run_all_iterations();
         this->finalise_reweighting();
+    }
+
+    void reweightor::run_streaming(eventSink &sink, bool include_ids)
+    {
+        if (!this->streaming())
+            throw std::runtime_error("reweightor::run_streaming: lhe is not in streaming mode (no source set); use run() instead");
+        if (!this->initialise())
+            throw std::runtime_error("reweightor::run_streaming: initialise iterator returned false, something went wrong.");
+        if (this->reweightors.empty())
+            throw std::runtime_error("reweightor::run_streaming: no procReweightors set in reweightor");
+
+        // The procReweightors as originally registered, before any batch is
+        // pulled: extract_sorter_stream() only ever reads from this (cloning
+        // fresh instances per batch), never writes into it, so it stays a
+        // valid template for every batch of the run
+        auto base_reweightors = this->reweightors;
+
+        // Weight IDs (pre-existing <initrwgt> ids plus this run's
+        // launch_names) are entirely header/config-derived -- see
+        // lhe::extract_weight_ids() and finalise_reweighting() -- so they
+        // can be resolved once, up front, instead of once per batch. That
+        // way every batch's events already carry the final weight_ids as
+        // they're written
+        this->extract_weight_ids();
+        if (this->launch_names.size() > 0)
+        {
+            size_t nWgts = this->weight_ids->size();
+            for (size_t i = 0; i < this->launch_names.size(); ++i)
+            {
+                std::string curr_name = (this->launch_names[i].empty()) ? "rwgt_" + std::to_string(i + nWgts + 1) : this->launch_names[i];
+                this->weight_ids->push_back(curr_name);
+            }
+        }
+        this->append_weight_ids(include_ids);
+        sink.write_open(static_cast<const initNode &>(*this), this->header);
+
+        this->setup_pool();
+
+        xSecAccumulator acc;
+        while (this->pull_batch() > 0)
+        {
+            this->extract_sorter_stream(base_reweightors);
+            this->initialise_reweightors();
+            this->sync_n_amps();
+
+            this->curr_iter = 0;
+            this->run_all_iterations();
+
+            // Materialize every genuinely-deferred result for this batch
+            // now (rather than once at the very end, as finalise_reweighting()
+            // does for the non-streaming path): this batch's procReweightor
+            // instances are clones, about to be discarded, and the next
+            // batch's clones start from a fresh copy of `base_reweightors`
+            // regardless -- but draining now is also what makes it safe for
+            // extract_sorter_stream() to matter-of-factly clone `base` again
+            // next iteration without inheriting stale backlog state
+            for (auto &rwgt : this->reweightors)
+                rwgt->pull_deferred_backlog();
+            for (auto &proc : this->processes)
+            {
+                proc->transpose_wgts();
+                proc->validate();
+            }
+
+            acc.absorb(this->events);
+            for (auto &ev : this->events)
+                sink.write_event(ev);
+
+            this->verbose.print(".");
+            std::cout.flush();
+        }
+
+        if (!this->finalise())
+            this->verbose.warn("reweightor::run_streaming: finalise iterator returned false, something might have gone wrong. Validate output manually.");
+
+        acc.finalise_into(*this);
+        sink.write_close();
     }
 
     void reweightor::calc_xSecs()
@@ -869,6 +1422,7 @@ namespace REX::tea
     {
         if (this->rwgt_xSec.size() == 0)
             this->calc_xSecs();
+        this->calc_xSec_from_weights();
         double loc_xSec = std::accumulate(this->xSec_.begin(), this->xSec_.end(), 0.0);
         double loc_xErr = std::sqrt(std::accumulate(this->xSecErr_.begin(), this->xSecErr_.end(), 0.0, [](double a, double b)
                                                     { return a + b * b; }));
@@ -901,8 +1455,16 @@ namespace REX::tea
             this->rwgt_xErr[k] = loc_xSec * std::sqrt(variance) * sqrtInvNoEvs + loc_xErr * omg[k] * invNoEvs;
             if (std::isnan(this->rwgt_xErr[k]) || std::isinf(this->rwgt_xErr[k]) || this->rwgt_xErr[k] <= 0.0)
             {
-                warning("reweightor::calc_xErrs: Error propagation failed for weight " + std::to_string(k) + ". Approximating the error at the level of the cross section.");
-                this->rwgt_xErr[k] = loc_xErr * std::max(loc_xSec / this->rwgt_xSec[k], this->rwgt_xSec[k] / loc_xSec);
+                if (loc_xSec <= 0.0 || this->rwgt_xSec[k] == 0.0)
+                {
+                    this->verbose.warn("reweightor::calc_xErrs: Error propagation failed for weight " + std::to_string(k) + " and no baseline cross section is available to approximate it from; setting the error to 0.", true);
+                    this->rwgt_xErr[k] = 0.0;
+                }
+                else
+                {
+                    this->verbose.warn("reweightor::calc_xErrs: Error propagation failed for weight " + std::to_string(k) + ". Approximating the error at the level of the cross section.");
+                    this->rwgt_xErr[k] = loc_xErr * std::max(loc_xSec / this->rwgt_xSec[k], this->rwgt_xSec[k] / loc_xSec);
+                }
             }
         }
     }
