@@ -6087,6 +6087,13 @@ namespace REX
 
     std::shared_ptr<xmlNode> xmlNode::parse_element(const std::shared_ptr<const std::string> &doc, size_t &pos)
     {
+        std::vector<std::string_view> ancestors;
+        return parse_element(doc, pos, ancestors);
+    }
+
+    std::shared_ptr<xmlNode> xmlNode::parse_element(const std::shared_ptr<const std::string> &doc, size_t &pos,
+                                                    std::vector<std::string_view> &ancestors)
+    {
         const std::string &s = *doc;
         const size_t N = s.size();
         if (pos >= N || s[pos] != '<')
@@ -6147,6 +6154,26 @@ namespace REX
             // Check for closing tag of this node
             if (lt + 1 < N && s[lt + 1] == '/')
             {
+                // A closing tag for one of the enclosing elements instead
+                // means this element is never closed: it is not an element
+                // at all but text that happens to look like a start tag --
+                // eg "<run>" or "<set>@<member>" in the comments of an MG7
+                // run card embedded unescaped in an LHE header. Give up on
+                // it so the caller keeps it as content; otherwise this
+                // closing tag would end this element instead, and every
+                // later sibling of the enclosing element (<initrwgt>, say)
+                // would end up nested inside it. A closing tag naming no
+                // open element at all still just ends this one, as before.
+                size_t close_beg = lt + 2;
+                while (close_beg < N && is_space(s[close_beg]))
+                    ++close_beg;
+                size_t close_end = close_beg;
+                while (close_end < N && !is_space(s[close_end]) && s[close_end] != '>')
+                    ++close_end;
+                std::string_view close_name(s.data() + close_beg, close_end - close_beg);
+                if (close_name != node->name_view_ &&
+                    std::find(ancestors.begin(), ancestors.end(), close_name) != ancestors.end())
+                    return nullptr;
                 node->content_end_ = lt;
                 // find end of closing tag
                 size_t gt = s.find('>', lt + 2);
@@ -6175,7 +6202,9 @@ namespace REX
 
             // Child node
             size_t child_pos = lt;
-            auto child = parse_element(doc, child_pos);
+            ancestors.push_back(node->name_view_);
+            auto child = parse_element(doc, child_pos, ancestors);
+            ancestors.pop_back();
             if (!child)
             {
                 // If parse failed, avoid infinite loop by moving cursor forward

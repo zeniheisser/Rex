@@ -3261,6 +3261,11 @@ namespace REX
 
         // Recursive element parser. Expects 'pos' at '<' for a normal element
         static std::shared_ptr<xmlNode> parse_element(const std::shared_ptr<const std::string> &doc, size_t &pos);
+        // ancestors: names of the elements enclosing this one, innermost
+        // last; returns nullptr for an element that is never closed (see the
+        // definition), so the caller can treat its start tag as text.
+        static std::shared_ptr<xmlNode> parse_element(const std::shared_ptr<const std::string> &doc, size_t &pos,
+                                                      std::vector<std::string_view> &ancestors);
 
         // Top-level scanner to locate the first element (skips XML decl, comments, etc.)
         static size_t find_first_element_start(const std::string &s, size_t pos);
